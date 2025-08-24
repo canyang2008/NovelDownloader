@@ -199,12 +199,7 @@ class NovelDownloader:
             print("webdriver出现错误")
             return False
 
-    def func(self, funct: str):
-        if funct == 'DEBUG':
-            download_url = self.load_downargs(
-                "https://fanqienovel.com/page/7276384138653862966 --group=Default --update=True").download_url
-            self.download_novel(download_url)
-            return True
+    def func(self):
         while True:
 
             url_config = copy.deepcopy(self.Class_Config.url_config)
@@ -457,4 +452,4 @@ if sys.stdout.encoding != 'UTF-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 if sys.stderr.encoding != 'UTF-8':
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-downloader = NovelDownloader().func("DEBUG  ")
+downloader = NovelDownloader().func()
