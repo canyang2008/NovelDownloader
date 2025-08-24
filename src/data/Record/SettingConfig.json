@@ -1,0 +1,36 @@
+{
+    "Default": {
+      "Group": "Default",
+      "User_data_dir": "data\\Record\\User Data",
+      "Wait_time": [
+            1,
+            3
+        ],
+        "Save_method": {
+            "json": {
+                "name": "name_default",
+              "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+              "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
+            },
+            "txt": {
+                "name": "name_default",
+              "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+              "gap": 0,
+              "max_filesize": -1
+            },
+          "html": {
+            "name": "name_default",
+            "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+            "one_file": true
+            }
+        }
+    },
+  "User": "Default",
+  "Users": [
+    "Default"
+  ],
+  "Play_completion_sound": false,
+  "Group": "Default",
+    "Program_location": "",
+  "Unprocessed_download_arguments": []
+}
