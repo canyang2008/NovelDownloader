@@ -6,10 +6,9 @@ init(autoreset=True)  # 初始化colorama，自动重置颜色
 
 class RunDriver:
 
-    def __init__(self, logger):
+    def __init__(self):
 
         self.co = None
-        self.logger = logger
         self.options = None
         self.driver = None
 
@@ -25,7 +24,6 @@ class RunDriver:
             else:
                 self.driver = self.driver.get_tab()
         except Exception as e:
-            self.logger.error(e)
             self.driver.quit()
             print(f"{Fore.LIGHTRED_EX}Chromium无法启动，信息:{e}")
             exit(1)

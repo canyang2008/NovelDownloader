@@ -1,22 +1,30 @@
+# -*- coding: utf-8 -*-
 import copy
 import io
 import json
-import logging
 import os
 import re
 import shlex
 import sys
 import time
-from logging.handlers import TimedRotatingFileHandler
+import tkinter as tk
+from tkinter import filedialog
+
+import msgpack
 import winsound
+from colorama import init, Fore
 from tqdm import tqdm
-from Check import Check
+
+import Check
+from Check import Check as CCheck
 from Fanqie import Fanqie
 from GetHtml import GetHtml
 from Qidian import Qidian
 from RunDriver import RunDriver
 from Save import Save
 from SetConfig import SetConfig
+
+init(autoreset=True)
 
 
 def range_split(deal_range, total_list):
@@ -95,12 +103,14 @@ class NovelDownloader:
         for group in self.Class_Config.url_config[self.Class_Config.Main_user].keys():
             if self.download_url in self.Class_Config.url_config[self.Class_Config.Main_user][group].keys():
                 config = self.Class_Config.url_config[self.Class_Config.Main_user][group][self.download_url]
-                json_path = config['Save_method']['json']['dir'] + '\\' + config["Name"] + '.json'
+                json_path = os.path.join(os.getenv("LOCALAPPDATA"), "CyNovelbase", self.Class_Config.Main_user, "json",
+                                         os.path.basename(
+                                             config["Name"] + '.json'))
                 if not os.path.exists(json_path):
                     print('json被移动或不存在')
                 else:
-                    with open(json_path, encoding='utf-8') as f:
-                        self.Class_Novel.novel = json.load(f)
+                    with open(json_path, "rb", encoding='utf-8') as f:
+                        self.Class_Novel.novel = msgpack.load(f)
                     self.Class_Novel.down_title_list = [title for title in self.Class_Novel.down_title_list if
                                                         title not in self.Class_Novel.novel['chapters'].keys() or not
                                                         self.Class_Novel.novel['chapters'][title]['integrity']]
@@ -125,28 +135,22 @@ class NovelDownloader:
         self.downargs = {k.lower(): v for k, v in self.downargs.items()}  # 键统一用小写
 
         url = self.downargs.get('url', None)
-        self.logger.debug(f"Main:[ARGS]:原始的download_url:{url}")
         referer = re.search(r'https://?([^/]+)', url).group(1)
-        self.logger.info(f"Main:[INFO]:referer:{referer}")
         url = re.search(r'[^?]+', url).group(0)
         if 'https://changdunovel.com/wap/' in url:  # 处理番茄小说的分享链接
             url = re.sub(r'^(\s*)\S+',
                          'https://fanqienovel.com/page/' + re.search(r"book_id=([^&]+)", url).group(1),
                          url)
-        self.logger.info(f"Main:[ARGS]:已处理的download_url:{url}")
         if 'fanqienovel.com' in referer:
             self.Class_Novel = self.Class_Fanqie
-            self.logger.info("Main:[INFO]:类Class_Novel已成功替换为类Class_Fanqie")
         elif 'qidian.com' in referer:
             self.Class_Novel = self.Class_Qidian
-            self.logger.info("Main:[INFO]:类Class_Novel已成功替换为类Class_Qidian")
         else:
             print('不支持该网站，请检查链接')
             return False
 
         self.download_url = url
         self.Class_Config.set_url_config(url)  # 设置url的配置
-        self.logger.info("Main:[INFO]:UrlConfig设置成功")
         self.Class_Config.Group = self.downargs.get('group', self.Class_Config.Group)
         self.range = self.downargs.get('range', None)
         self.novel_update = self.downargs.get('update', False)
@@ -156,36 +160,28 @@ class NovelDownloader:
 
     def download_novel(self, download_url):
         self.RunDriver.config(self.Class_Config)
-        self.logger.info("Main:[INFO]:Webdriver开始配置")
         driver = self.RunDriver.run()  # 获取webdriver
-        self.logger.info("Main:[INFO]:Webdriver启动")
         if driver:
-            self.logger.info("Main:[INFO]:Webdriver启动成功")
-            self.logger.info("Main:[INFO]:开始获取源码")
             soup = self.Class_GetHtml.get(download_url, driver, self.Class_Config.Wait_time)  # 获取soup
             self.Class_Novel.getpage(download_url, soup)  # 获取小说目录页
-            self.logger.info("Main:[INFO]:成功获取小说目录页")
             if self.novel_update:
                 self.update()
+                self.Class_Save.config(self.Class_Novel, self.Class_Config)
+                self.Class_Save.save(full_save=True)
             if self.range:
-                self.logger.info(f"Main:[INFO]:范围格式化中:{self.range}")
                 self.range = range_split(self.range, len(self.Class_Novel.down_title_list))
                 self.Class_Novel.down_title_list = [self.Class_Novel.down_title_list[i - 1] for i in self.range]
                 self.Class_Novel.down_url_list = [self.Class_Novel.down_url_list[i - 1] for i in self.range]
-                self.logger.info(f"Main:[INFO]:范围格式化成功:{self.range}")
 
             self.Class_Save.config(self.Class_Novel, self.Class_Config)
-            self.logger.info("Main:[INFO]:保存小说的配置成功")
             with tqdm(total=len(self.Class_Novel.down_title_list),
                       desc=self.Class_Novel.novel['info']['name']) as down_progress:
                 try:
                     for title, url in zip(self.Class_Novel.down_title_list, self.Class_Novel.down_url_list):
                         soup = self.Class_GetHtml.get(url, driver, self.Class_Config.Wait_time)
                         self.Class_Novel.getnovel(title, url, soup)
-                        self.logger.info(f"Main:[INFO]:获取标题: {title} 的章节成功")
                         if self.Class_Config.Save_method:
                             self.Class_Save.save(title=title)
-                            self.logger.info("Main:[INFO]:小说保存成功")
                         down_progress.update(1)
                     # 更新阅读进度
                     driver.get(self.Class_Novel.pro_url)
@@ -221,7 +217,7 @@ class NovelDownloader:
 4.指定章节下载:
 5.设置:
 """).strip()
-            match self.select:
+            match self.select:  # 嵌套严重，被绕晕了..
                 case "1":
                     for sequence in range(len(urls_para)):  print(
                         f'{sequence + 1}.群组：{urls_para[sequence][0]} 小说名：{urls_para[sequence][1]}')
@@ -295,8 +291,9 @@ class NovelDownloader:
                                             break
                                         if re.match(r"\d+", option.strip()):
                                             option = int(option)
-                                            self.Class_Config.save_config()
                                             self.Class_Config.Main_user = users[option - 1]
+                                            self.Class_Config.setting_config['User'] = users[option - 1]
+                                            self.Class_Config.save_config()
                                             print(f"账户切换成功({users[option - 1]})")
                                             break
                                         else:
@@ -331,7 +328,6 @@ class NovelDownloader:
                                         if del_user == self.Class_Config.Main_user:
                                             self.Class_Config.setting_config["User"] = users[0]
                                             self.Class_Config.Main_user = users[0]
-                                            self.Class_Config.save_config()
                                             print(f"账户 {del_user} 已删除成功({self.Class_Config.Main_user})")
                                         self.Class_Config.save_config()
 
@@ -352,8 +348,9 @@ class NovelDownloader:
                                             break
                                         if re.match(r"\d+", option.strip()):
                                             option = int(option)
-                                            self.Class_Config.save_config()
                                             self.Class_Config.Main_group = groups[option - 1]
+                                            self.Class_Config.setting_config["Group"] = groups[option - 1]
+                                            self.Class_Config.save_config()
                                             print(f"分组切换成功({groups[option - 1]})")
                                             break
                                         else:
@@ -389,13 +386,76 @@ class NovelDownloader:
                                         if del_group == self.Class_Config.Main_group:
                                             self.Class_Config.url_config[self.Class_Config.Main_user] = groups[0]
                                             self.Class_Config.Main_group = groups[0]
-                                            self.Class_Config.save_config()
                                             print(f"分组 {del_group} 已删除成功({self.Class_Config.Main_group})")
                                         self.Class_Config.save_config()
 
                         case '3':
-                            print('暂未实现..')
-                            continue
+                            default_config = copy.deepcopy(self.Class_Config.setting_config['Default'])
+                            print("如果退出请按r键")
+                            print(f"""修改选择：
+1.默认保存的群组（当前：{default_config['Group']}）：
+2.浏览器用户数据目录（当前：{default_config['User_data_dir']}）：
+3.延迟（当前：下限：{default_config['Wait_time'][0]}，上限：{default_config['Wait_time'][1]}）：
+4.保存方式（未实现）
+""")
+                            select = input().strip()
+                            if not re.match(r"\d", select):
+                                print("请输入数字\n已退出..")
+                                break
+                            match select:
+                                case "1":
+                                    group_input = input("请输入分组名(前后不允许空格):").strip()
+                                    if not group_input or 'r' in group_input.lower():
+                                        print("不创建分组，已退出..")
+                                        break
+                                    self.Class_Config.setting_config['Default']['Group'] = group_input
+                                    self.Class_Config.save_config()
+
+                                case "2":
+                                    print("选择文件夹：")
+                                    time.sleep(1)
+                                    root = tk.Tk()
+                                    root.withdraw()  # 隐藏主窗口
+
+                                    # 弹出文件夹选择对话框
+                                    folder_path = filedialog.askdirectory(
+                                        title="选择文件夹",
+                                        initialdir=os.getcwd()  # 初始目录设置为当前工作目录
+                                    )
+
+                                    # 销毁主窗口
+                                    root.destroy()
+                                    if not folder_path:
+                                        print("未选择文件夹..")
+                                        break
+                                    if os.path.dirname(__file__) in folder_path:
+                                        os.path.relpath(os.path.dirname(__file__), folder_path)
+                                    self.Class_Config.setting_config['Default']['User_data_dir'] = folder_path
+                                    self.Class_Config.save_config()
+
+                                case "3":
+                                    while True:
+                                        lower_limit = input("请输入下限：").strip()
+                                        if not lower_limit or 'r' in lower_limit.lower():
+                                            print("已退出..")
+                                            break
+                                        if re.match(r"^\d+((\.)?\d+)?$", lower_limit):
+                                            self.Class_Config.setting_config['Default']['Wait_time'][0] = int(
+                                                lower_limit)
+                                        else:
+                                            print("请重新输入：")
+                                            continue
+
+                                        upper_limit = input("请输入上限：").strip()
+                                        if not upper_limit or 'r' in upper_limit.lower():
+                                            print("已退出..")
+                                            break
+                                        if re.match(r"^\d+((\.)?\d+)?$", upper_limit):  # 匹配整数或小数
+                                            self.Class_Config.setting_config['Wait_time'][1] = int(upper_limit)
+                                            self.Class_Config.save_config()
+                                        else:
+                                            print("请重新输入：")
+                                            continue
 
         return True
 
@@ -407,49 +467,75 @@ class NovelDownloader:
         self.download_url = None
         self.range = None
         self.downargs = {}
-        # 1. 创建日志记录器
-        self.logger = logging.getLogger("MAIN")
-        self.logger.setLevel(logging.DEBUG)  # 设置记录器级别
-
-        # 2. 创建处理器（控制台+文件）
-        # 控制台处理器
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.WARNING)  # 控制台只显示WARNING以上级别
-
-        # 文件处理器（自动按天分割日志）
-        file_handler = TimedRotatingFileHandler(
-            filename='data\\log\\main.log',
-            when='midnight',  # 每天午夜分割
-            backupCount=7,  # 保留7天日志
-            encoding='utf-8'
-        )
-        file_handler.setLevel(logging.DEBUG)
-
-        # 3. 设置日志格式
-        formatter = logging.Formatter(
-            '[%(asctime)s] %(levelname)-8s %(name)-12s %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        console_handler.setFormatter(formatter)
-        file_handler.setFormatter(formatter)
-
-        # 4. 将处理器添加到记录器
-        self.logger.addHandler(console_handler)
-        self.logger.addHandler(file_handler)
-        self.Class_Config = SetConfig(self.logger)
-        self.Class_Check = Check(self.logger)
-        self.RunDriver = RunDriver(self.logger)
-        self.Class_GetHtml = GetHtml(self.logger, self.RunDriver)
-        self.Class_Save = Save(self.logger)
-        self.Class_Qidian = Qidian(self.logger)
-        self.Class_Fanqie = Fanqie(self.logger)
+        self.Class_Config = SetConfig()
+        self.Class_Check = CCheck()
+        self.RunDriver = RunDriver()
+        self.Class_GetHtml = GetHtml(self.RunDriver, self.Class_Config.setting_config['Play_completion_sound'])
+        self.Class_Save = Save()
+        self.Class_Qidian = Qidian()
+        self.Class_Fanqie = Fanqie()
         self.Class_Novel = None
 
         return
 
 
-if sys.stdout.encoding != 'UTF-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-if sys.stderr.encoding != 'UTF-8':
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-downloader = NovelDownloader().func()
+if sys.platform.startswith('win'):
+    # Windows系统下的特殊处理
+    if sys.stdout.encoding != 'UTF-8':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    if sys.stderr.encoding != 'UTF-8':
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+    # 尝试设置控制台代码页为UTF-8（仅Windows）
+    os.system('chcp 65001 > nul')
+else:
+    # 非Windows系统（Linux/macOS）通常默认使用UTF-8
+    if sys.stdout.encoding != 'UTF-8':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    if sys.stderr.encoding != 'UTF-8':
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+init(autoreset=True)
+print(f"""
+作者：Canyang2008
+项目地址：https://github.com/canyang2008/NovelDownloader
+项目初期有很多bug，请见谅...
+如果在使用过程中想反馈，欢迎参与讨论:
+    QQ：765857967    issues：https://github.com/canyang2008/NovelDownloader/issues/1\n
+检查配置中:\n\n""")
+print(f"{Fore.YELLOW}注：格式化操作是删除data文件夹再次运行即可，包括浏览器数据")
+p = os.path.join(os.path.dirname(__file__), 'data')
+if not os.path.exists(os.path.join(os.path.dirname(__file__), 'data')):
+    print("data文件夹缺失，即将初始化")
+    Check.init_data_dir()
+    print("初始化成功")
+if os.path.exists("data/Record/UrlConfig.json"):
+    with open("data/Record/UrlConfig.json", encoding='utf-8') as f:
+        try:
+            url_config = json.load(f)
+            print(f"data/Record/UrlConfig.json{Fore.LIGHTGREEN_EX}完整")
+        except json.decoder.JSONDecodeError:
+            print(f"data/Record/UrlConfig.json{Fore.LIGHTYELLOW_EX}不完整，请检查配置文件UrlConfig.json是否损坏")
+            input()
+url_config_version = url_config.get('Version')
+if url_config_version != '1.0.1':
+    info = f'{Fore.LIGHTYELLOW_EX}不是最新版'
+else:
+    info = f'{Fore.LIGHTGREEN_EX}️通过'
+print(f"data/Record/UrlConfig.json的版本：{url_config_version}  最新版本：{'1.0.1'}  {info}")
+if url_config_version != '1.0.1':
+    Check.json_copy_to_root()
+with open("data/Record/SettingConfig.json", encoding='utf-8') as f:
+    try:
+        setting_config = json.load(f)
+        print(f"data/Record/SettingConfig.json{Fore.LIGHTGREEN_EX}完整")
+    except json.decoder.JSONDecodeError:
+        print(f"data/Record/SettingConfig.json{Fore.LIGHTYELLOW_EX}不完整，请检查配置文件SettingConfig.json是否损坏")
+        input()
+setting_config_version = setting_config.get('Version')
+if setting_config_version != '1.0.0':
+    info = f'{Fore.LIGHTYELLOW_EX}不是最新版'
+else:
+    info = f'{Fore.LIGHTGREEN_EX}️通过'
+print(f"data/Record/SettingConfig.json的版本：{url_config_version}  最新版本：{'1.0.0'}  {info}")
+downloader = NovelDownloader()
+downloader.func()

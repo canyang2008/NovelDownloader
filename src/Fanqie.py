@@ -4,9 +4,8 @@ import requests
 
 
 class Fanqie:
-    def __init__(self, logger):
+    def __init__(self):
 
-        self.logger = logger
         self.down_url_list = []
         self.down_title_list = []
         self.pro_url = ''

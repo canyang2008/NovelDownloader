@@ -1,4 +1,5 @@
 {
+  "Version": "1.0.0",
     "Default": {
       "Group": "Default",
       "User_data_dir": "data\\Record\\User Data",
@@ -31,6 +32,6 @@
   ],
   "Play_completion_sound": false,
   "Group": "Default",
-    "Program_location": "",
+    "Program_location": "F:\\Administartor1\\Document\\FanQieNovel-Downloader\\NovelDownloader2.0\\src",
   "Unprocessed_download_arguments": []
 }

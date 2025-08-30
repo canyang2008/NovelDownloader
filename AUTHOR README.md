@@ -91,6 +91,7 @@
   默认：
   ```json
   {
+    "Version":"1.0.0",
     "Default": {
         "Group": "Default",
         "User_data_dir": "data\\Record\\Chromedriver\\User Data",
@@ -139,6 +140,7 @@
   默认：
   ```json
   {
+    "Version":"1.0.1",
     "Default":
     {
         "Default":{

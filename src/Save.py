@@ -1,20 +1,22 @@
+import base64
+import copy
 import json
 import math
 import os
 import re
-import copy
-import base64
 import shutil
 from pathlib import Path
 
+import msgpack
+
+
 class Save:
-    def __init__(self, logger):
+    def __init__(self):
 
         self.size_text = None
         self.gap_size_idx = None
         self.size_title_lists = []
         self.txt_chunk_keys = None
-        self.logger = logger
         self.full_save = None
         self.save_config = None
         self.Class_Novel = None
@@ -103,6 +105,14 @@ class Save:
                     self.html_save(full_save, title)
 
     def json_save(self, full_save=False):
+
+        # 根JSON保存
+        root_path = os.path.join(os.getenv("LOCALAPPDATA"), "CyNovelbase",
+                                 "data", self.Class_Config.Main_user, "json",
+                                 self.Class_Novel.novel['info']['name'] + '.json')
+        os.makedirs(root_path, exist_ok=True)
+        with open(root_path, 'wb') as f:
+            msgpack.dump(self.Class_Novel.novel, f)
 
         # 保存JSON文件
         json_content = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)

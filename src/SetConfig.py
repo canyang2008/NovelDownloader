@@ -1,15 +1,15 @@
+import copy
 import json
 import time
-import copy
 from pathlib import Path
+
 
 class SetConfig:
     """配置类"""
 
-    def __init__(self, logger):
+    def __init__(self):
 
         """初始化配置"""
-        self.logger = logger
         self.config_url = None
         with open('data/Record/UrlConfig.json', 'r', encoding='utf-8') as f:
             self.url_config = json.load(f)
