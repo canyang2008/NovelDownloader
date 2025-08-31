@@ -110,7 +110,7 @@ class Save:
         root_path = os.path.join(os.getenv("LOCALAPPDATA"), "CyNovelbase",
                                  "data", self.Class_Config.Main_user, "json",
                                  self.Class_Novel.novel['info']['name'] + '.json')
-        os.makedirs(root_path, exist_ok=True)
+        os.makedirs(os.path.dirname(root_path), exist_ok=True)
         with open(root_path, 'wb') as f:
             msgpack.dump(self.Class_Novel.novel, f)
 
@@ -126,7 +126,7 @@ class Save:
 
         if full_save:  # 以保存所有的图片
             for title in self.Class_Novel.novel['chapters'].keys():
-                if self.Class_Novel.novel['chapters'][title]['img_data']:
+                if self.Class_Novel.novel['chapters'][title]['img_item']:
                     self.Class_Novel.img_items[title] = self.Class_Novel.novel['chapters'][title]['img_item']
 
         # 保存图片

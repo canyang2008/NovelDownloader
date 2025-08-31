@@ -42,7 +42,7 @@ class Qidian:
         intro = soup.find('p', class_='intro').get_text()
         intro_detail = soup.find('p', id='book-intro-detail').get_text()  # 简介
         abstract = f'{intro}\n{intro_detail}'
-        book_cover_url = soup.find('a', id='bookImg').find('img').get('src')  # 封面图片链接
+        book_cover_url = 'https:' + soup.find('a', id='bookImg').find('img').get('src')  # 封面图片链接
         book_cover_data = base64.b64encode(requests.get(book_cover_url).content).decode("utf-8")
         self.desc_figural[name] = book_cover_url
         web_chapter_list = soup.find_all('li', class_='chapter-item')

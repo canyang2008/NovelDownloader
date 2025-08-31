@@ -25,24 +25,23 @@ class GetHtml:
         elif "reader" in url:
             class_name = ".muye-reader-content noselect"
         elif "book" in url:
-            class_name = ".page-directory-content"
+            class_name = "#bookCatalogSection"
         elif "chapter" in url:
             class_name = ".content-text"
         else:
             print("无效的url")
             exit(1)
-        tab = None
         try:
-            tab = driver.get(url)
+            driver.get(url)
             time.sleep(random.randint(wait_time[0], wait_time[1]))
             if not driver.states.is_alive: raise BaseError
-            tab.wait.eles_loaded(
+            driver.wait.eles_loaded(
                 class_name, raise_err=True)  # 分别为番茄目录页、起点目录页、番茄章节内容页、起点章节内容页（class）
-            html = tab.html
+            html = driver.raw_data
             self.soup = BeautifulSoup(html, "lxml")
             return self.soup
         except WaitTimeoutError:
-            if tab.get_frames():
+            if driver.get_frames():
                 toast = ToastNotifier()
                 toast.show_toast(
                     title="验证码拦截",

@@ -102,15 +102,17 @@ class NovelDownloader:
     def update(self):
         for group in self.Class_Config.url_config[self.Class_Config.Main_user].keys():
             if self.download_url in self.Class_Config.url_config[self.Class_Config.Main_user][group].keys():
-                config = self.Class_Config.url_config[self.Class_Config.Main_user][group][self.download_url]
-                json_path = os.path.join(os.getenv("LOCALAPPDATA"), "CyNovelbase", self.Class_Config.Main_user, "json",
-                                         os.path.basename(
-                                             config["Name"] + '.json'))
+                config = self.Class_Config.url_config[self.Class_Config.Main_user][group][
+                    self.download_url]  # 链接存在于UrlConfig.json时
+                json_path = os.path.join(os.getenv("LOCALAPPDATA"), "CyNovelbase", 'data', self.Class_Config.Main_user,
+                                         "json",
+                                         config["Name"] + '.json')
                 if not os.path.exists(json_path):
                     print('json被移动或不存在')
                 else:
-                    with open(json_path, "rb", encoding='utf-8') as f:
-                        self.Class_Novel.novel = msgpack.load(f)
+                    with open(json_path, "rb") as msg_f:
+                        self.Class_Novel.novel = msgpack.load(msg_f)
+                        # 需要更新的链接及标题
                     self.Class_Novel.down_title_list = [title for title in self.Class_Novel.down_title_list if
                                                         title not in self.Class_Novel.novel['chapters'].keys() or not
                                                         self.Class_Novel.novel['chapters'][title]['integrity']]
@@ -129,8 +131,9 @@ class NovelDownloader:
         tokens = [i.replace('-', '') for i in tokens]
 
         if len(tokens) % 2 == 1:
-            tokens.pop(0)
+            tokens.pop(0)  # 大概率是在开始
         it = iter(tokens)
+
         self.downargs = dict(zip(it, it))
         self.downargs = {k.lower(): v for k, v in self.downargs.items()}  # 键统一用小写
 
@@ -176,6 +179,7 @@ class NovelDownloader:
             self.Class_Save.config(self.Class_Novel, self.Class_Config)
             with tqdm(total=len(self.Class_Novel.down_title_list),
                       desc=self.Class_Novel.novel['info']['name']) as down_progress:
+                down_progress.update(1)
                 try:
                     for title, url in zip(self.Class_Novel.down_title_list, self.Class_Novel.down_url_list):
                         soup = self.Class_GetHtml.get(url, driver, self.Class_Config.Wait_time)
@@ -198,12 +202,12 @@ class NovelDownloader:
     def func(self):
         while True:
 
-            url_config = copy.deepcopy(self.Class_Config.url_config)
+            saved_url_config = copy.deepcopy(self.Class_Config.url_config)
             urls_para = []
             urls = []
-            for group in url_config[self.Class_Config.Main_user].keys():
-                for url in url_config[self.Class_Config.Main_user][group].keys():
-                    name = url_config[self.Class_Config.Main_user][group][url]['Name']
+            for group in saved_url_config[self.Class_Config.Main_user].keys():
+                for url in saved_url_config[self.Class_Config.Main_user][group].keys():
+                    name = saved_url_config[self.Class_Config.Main_user][group][url]['Name']
                     urls.append(url)
                     urls_para.append((group, name, url))
 
@@ -229,6 +233,7 @@ class NovelDownloader:
                     for index in update_range:
                         self.download_url = urls_para[index - 1][2]
                         self.download_url = self.load_downargs(self.download_url).download_url
+                        self.novel_update = True
                         self.download_novel(self.download_url)
 
                 case "2":
@@ -239,6 +244,7 @@ class NovelDownloader:
                     self.download_url = self.load_downargs(para).download_url
                     if self.download_url in urls:
                         print("当前链接存在，自动更新中…")
+                        self.novel_update = True
                     self.download_novel(self.download_url)
                 case "3":
                     print(
@@ -247,11 +253,14 @@ class NovelDownloader:
                     time.sleep(0.5)
                     os.startfile('data\\Record\\urls.txt')
                     input()
-                    with open('data\\Record\\urls.txt', 'r', encoding='utf-8') as f:
-                        for line in f:
+                    with open('data\\Record\\urls.txt', 'r', encoding='utf-8') as f_:
+                        for line in f_:
                             if not line:
                                 continue
                             self.download_url = self.load_downargs(line).download_url
+                            if self.download_url in urls:
+                                print("当前链接存在，自动更新中…")
+                                self.novel_update = True
                             self.download_novel(self.download_url)
 
                 case "4":

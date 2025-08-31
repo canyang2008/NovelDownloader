@@ -86,4 +86,3 @@ class SetConfig:
                 'Last_control_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
             }
             self.config_update = True
-
