@@ -45,6 +45,7 @@ class SetConfig:
         self.config_url = config_url
 
         for user in self.url_config.keys():
+            if user == "Version": continue
             for group in self.url_config[user].keys():
                 # 如果下载链接在当前组的配置中
                 if config_url in self.url_config[user][group].keys():
@@ -85,3 +86,4 @@ class SetConfig:
                 'Last_control_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
             }
             self.config_update = True
+
