@@ -1,4 +1,4 @@
-# NovelDownloader
+# NovelDownloader(修改中，请勿下载)
 一个基于 Chrome 浏览器的小说内容抓取与下载工具，支持番茄小说网等平台的小说内容提取，并可下载封面与插图。
 
 ⚠️ 注意事项：
@@ -118,4 +118,5 @@ URL配置：`data\Record\UrlConfig.json`
 
 
 欢迎提出建议与新的功能想法！
+
 
