@@ -1,11 +1,16 @@
 import base64
+import re
+import time
+from datetime import datetime
 
 import requests
+from colorama import init, Fore
 
-
+init(autoreset=True)
 class Fanqie:
-    def __init__(self):
+    def __init__(self, logger_):
 
+        self.logger = logger_
         self.down_url_list = []
         self.down_title_list = []
         self.pro_url = ''
@@ -13,6 +18,28 @@ class Fanqie:
         self.all_title_list = []
         self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
         self.img_items = {}
+        self.user_state_code = -1  # 用户状态码 -1:未登录状态； 0：无vip； 1：标准
+
+    def user_state(self, soup):
+        user_info_div = soup.find("div", class_="slogin-user-avatar__info")
+        if user_info_div.find('img'):  # 有图片证明已登录
+            self.user_state_code = 0
+        else:
+            self.user_state_code = -1
+
+        if user_info_div.find('i', class_='user-content-vip'):  # 有vip图标时
+            self.user_state_code = 1
+        else:
+            self.user_state_code = 0
+
+        match self.user_state_code:
+            case -1:
+                print(f"{Fore.YELLOW}番茄账号未登录，下载的小说将不完整")
+            case 0:
+                print(f"{Fore.YELLOW}番茄账号已登录但无vip，下载的小说将不完整")
+            case 1:
+                print(f"{Fore.GREEN}番茄账号已登录且有vip")
+
 
     def getpage(
             self,
@@ -22,7 +49,7 @@ class Fanqie:
         self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
         # 找不到网页内容时
         if soup.find('div', class_='no-content'):
-            print('Cannot find this book')
+            print('找不到此书')
             return False
         name = soup.find('div', class_='info-name').get_text()
         author = soup.find('span', class_='author-name-text').get_text()
@@ -67,6 +94,33 @@ class Fanqie:
         time_word = soup.find_all('span', class_='desc-item')
         count_word = time_word[0].text
         update_time = time_word[1].text
+
+        if "分钟前" in update_time:  # 当更新时间显示为n分钟前时
+            minute = int(re.findall(r'\d+', update_time)[0]) * 60
+            current_time = time.time()
+            accurate_time = current_time - minute
+            update_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(accurate_time))
+
+        if "小时前" in update_time:  # 当更新时间显示为n小时前时
+            hour = int(re.findall(r'\d+', update_time)[0]) * 60 * 60
+            current_time = time.time()
+            accurate_time = current_time - hour
+            update_time = time.strftime("%Y-%m-%d %H", time.localtime(accurate_time))
+
+        if "天前" in update_time:  # 当更新时间显示为n天前时
+            day = int(re.findall(r'\d+', update_time)[0]) * 60 * 60 * 24
+            current_time = time.time()
+            accurate_time = current_time - day
+            update_time = time.strftime("%Y-%m-%d", time.localtime(accurate_time))
+
+        if "昨天" in update_time:  # 当更新时间显示为昨天时
+            current_time = time.time()
+            accurate_time = current_time - 60 * 60 * 24
+            update_time = time.strftime("%Y-%m-%d", time.localtime(accurate_time))
+
+        if update_time.count('-') == 1:  # 当没有年份时补上年份
+            update_time = f"{datetime.now().year}-{update_time}"
+
         # 转码表
         transcoding = {"58670": "0", "58413": "1", "58678": "2", "58371": "3", "58353": "4", "58480": "5", "58359": "6",
                        "58449": "7", "58540": "8", "58692": "9", "58712": "a", "58542": "b", "58575": "c", "58626": "d",
@@ -128,7 +182,7 @@ class Fanqie:
                        "58705": "四", "58379": "失", "58567": "满", "58373": "战", "58448": "远", "58659": "格",
                        "58434": "士", "58679": "音", "58432": "轻", "58689": "目", "58591": "条", "58682": "呢"}
 
-        def translate(en_text):
+        def translate(en_text):  # 转换乱码
             if not en_text: return ''
             text = ''
             for index in en_text:
@@ -143,9 +197,8 @@ class Fanqie:
 
         # 获取章节内容
         en_content_item = soup.find('div', class_='muye-reader-content noselect').find('div')
-        if not en_content_item: en_content_item = soup.find('div', class_='muye-reader-content noselect')
         en_content_text = ''
-        if soup.find('div', class_='muye-to-fanqie'):
+        if soup.find('div', class_='muye-to-fanqie'):  # 完整性检查
             integrity = False
         else:
             integrity = True
@@ -154,7 +207,7 @@ class Fanqie:
         for container in en_content_item:
             if container.name == 'p':
                 en_content_text += container.get_text() + '\n\t'
-            elif container.name == 'div':
+            elif container.name == 'div':  # 当有插图时
                 img_url = container.find('img').get('src')
                 en_content_text += f'<&!img?group_id={group_id}/!&>'
                 try:
@@ -185,4 +238,3 @@ class Fanqie:
             'img_item': img_item
         }
         return True
-

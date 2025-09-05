@@ -8,8 +8,9 @@ from win10toast import ToastNotifier
 
 
 class GetHtml:
-    def __init__(self, rundriver, play_sound):
+    def __init__(self, rundriver, play_sound, logger_):
 
+        self.logger = logger_
         self.RunDriver = rundriver
         self.driver = None
         self.play_sound = play_sound

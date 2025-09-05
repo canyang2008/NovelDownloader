@@ -4,8 +4,9 @@ import requests
 
 
 class Qidian:
-    def __init__(self):
+    def __init__(self, logger_):
 
+        self.logger = logger_
         self.img_items = {}
         self.down_url_list = []
         self.down_title_list = []

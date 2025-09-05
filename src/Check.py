@@ -1805,4 +1805,4 @@ def init_data_dir():
 </html>""")
     open('data/Record/urls.txt', 'w', encoding='utf-8').close()
 class Check:
-    def __init__(self): pass
+    def __init__(self, logger_): pass

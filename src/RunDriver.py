@@ -6,8 +6,9 @@ init(autoreset=True)  # 初始化colorama，自动重置颜色
 
 class RunDriver:
 
-    def __init__(self):
+    def __init__(self, logger_):
 
+        self.logger = logger_
         self.co = None
         self.options = None
         self.driver = None

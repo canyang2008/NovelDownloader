@@ -7,8 +7,9 @@ from pathlib import Path
 class SetConfig:
     """配置类"""
 
-    def __init__(self):
+    def __init__(self, logger_):
 
+        self.logger = logger_
         """初始化配置"""
         self.config_url = None
         with open('data/Record/UrlConfig.json', 'r', encoding='utf-8') as f:
