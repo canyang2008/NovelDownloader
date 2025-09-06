@@ -16,6 +16,10 @@ class Qidian:
         self.desc_figural = {}
         self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
 
+    def user_state(self, soup):
+        pass
+
+
     def getpage(
             self,
             url: str,

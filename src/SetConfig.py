@@ -31,11 +31,11 @@ class SetConfig:
 
     def save_config(self):
         """保存配置"""
-        url_config_format = json.dumps(self.url_config, ensure_ascii=False, indent=4)  # 防止写入中断
+        url_config_format = json.dumps(self.url_config, ensure_ascii=False, indent=2)  # 防止写入中断
         with open('data/Record/UrlConfig.json', 'w', encoding='utf-8') as f:
             f.write(url_config_format)
 
-        setting_config_format = json.dumps(self.setting_config, ensure_ascii=False, indent=4)  # 防止写入中断
+        setting_config_format = json.dumps(self.setting_config, ensure_ascii=False, indent=2)  # 防止写入中断
         with open('data/Record/SettingConfig.json', 'w', encoding='utf-8') as f:
             f.write(setting_config_format)
 

@@ -116,7 +116,7 @@ class Save:
             msgpack.dump(self.Class_Novel.novel, f)
 
         # 保存JSON文件
-        json_content = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+        json_content = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
         with open(self.save_config['json']['filepath'], 'w', encoding='utf-8') as f:
             f.write(json_content)
 
@@ -208,7 +208,7 @@ class Save:
                     chapter = self.Class_Novel.novel['chapters'][title]
                     content = re.sub(r'<&!img\?group_id=\d+/!&>', '', chapter['content'])
                     formatted = (
-                        f"{current_title}\n\t"
+                        f"{title}\n\t"
                         f"{chapter['count_word']}\t"
                         f"{chapter['update']}\n\n"
                         f"{content}\n\n"
@@ -311,7 +311,7 @@ class Save:
                     data = str(img_dir / title / desc) + '.png'
                     img_item[desc] = os.path.relpath(data, self.save_config['html']['dir'])
                 self.Class_Novel.novel['chapters'][title]['img_item'] = img_item
-                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
                 template = template.replace("<&?NovelData!&>", noveldata)
                 with open(html_path, 'w', encoding='utf-8') as f:
                     f.write(template)
@@ -322,13 +322,13 @@ class Save:
                     for desc, data in img_item.items():
                         data = str(img_dir / title / desc) + '.png'
                         img_item[desc] = os.path.relpath(data, self.save_config['html']['dir'])
-                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
                 template = template.replace("<&?NovelData!&>", noveldata)
                 with open(html_path, 'w', encoding='utf-8') as f:
                     f.write(template)
 
         else:
-            noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+            noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
             template = template.replace("<&?NovelData!&>", noveldata)
             with open(html_path, 'w', encoding='utf-8') as f:
                 f.write(template)

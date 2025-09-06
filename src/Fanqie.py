@@ -206,6 +206,15 @@ class Fanqie:
         img_item = {}
         for container in en_content_item:
             if container.name == 'p':
+                if container.find('img'):  # 旧版番茄网站期间所存的小说有这种情况
+                    img_url = container.find('img').get('src')
+                    en_content_text += f'<&!img?group_id={group_id}/!&>'
+                    img_desc = group_id
+                    group_id += 1
+                    img_data = base64.b64encode(requests.get(img_url).content).decode("utf-8")
+                    img_data = "data:image/png;base64," + img_data
+                    img_item[img_desc] = img_data
+                    self.img_items[title] = img_item.copy()
                 en_content_text += container.get_text() + '\n\t'
             elif container.name == 'div':  # 当有插图时
                 img_url = container.find('img').get('src')

@@ -18,7 +18,7 @@ class GetHtml:
 
     def get(self,
             url: str,
-            driver,
+            tab,
             wait_time: tuple[int, int] = (0, 0),
             ):
         if "page" in url:
@@ -33,16 +33,16 @@ class GetHtml:
             print("无效的url")
             exit(1)
         try:
-            driver.get(url)
+            tab.get(url)
             time.sleep(random.randint(wait_time[0], wait_time[1]))
-            if not driver.states.is_alive: raise BaseError
-            driver.wait.eles_loaded(
+            if not tab.states.is_alive: raise BaseError
+            tab.wait.eles_loaded(
                 class_name, raise_err=True)  # 分别为番茄目录页、起点目录页、番茄章节内容页、起点章节内容页（class）
-            html = driver.raw_data
+            html = tab.raw_data
             self.soup = BeautifulSoup(html, "lxml")
             return self.soup
         except WaitTimeoutError:
-            if driver.get_frames():
+            if tab.get_frames():
                 toast = ToastNotifier()
                 toast.show_toast(
                     title="验证码拦截",
@@ -55,7 +55,7 @@ class GetHtml:
                     time.sleep(1)
                     winsound.MessageBeep(winsound.MB_OK)
                 input("请完成验证码...\n完成后按Enter继续")
-                return self.get(url, driver, wait_time)
+                return self.get(url, tab, wait_time)
         except BaseError:
-            driver = self.RunDriver.run()
-            return self.get(url, driver, wait_time)
+            tab = self.RunDriver.run()
+            return self.get(url, tab, wait_time)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import copy
-import json
+import faulthandler
 import logging
 import os
 import re
@@ -26,6 +26,7 @@ from RunDriver import RunDriver
 from Save import Save
 from SetConfig import SetConfig
 
+faulthandler.enable()
 init(autoreset=True)
 
 
@@ -133,7 +134,9 @@ class NovelDownloader:
                     print('json文件被移动或不存在')
                 else:
                     with open(json_path, "rb") as msg_f:
-                        self.Class_Novel.novel['chapters'] = msgpack.load(msg_f)['chapters']
+                        read_data = msgpack.load(msg_f, strict_map_key=False)
+                        self.Class_Novel.novel['chapters'] = read_data['chapters']  # 获取章节的同时更新小说信息
+                        self.Class_Novel.novel['info']['name'] = read_data['info']['name']  # 防止小说名称改变而找不到根json
                     # 需要更新的和不完整的链接及标题
                     self.Class_Novel.down_title_list = [title for title in self.Class_Novel.down_title_list if
                                                         title not in self.Class_Novel.novel['chapters'].keys() or not
@@ -159,17 +162,15 @@ class NovelDownloader:
         # 转变为键值对
         self.downargs = dict(zip(it, it))
         self.downargs = {k.lower(): v for k, v in self.downargs.items()}  # 键统一用小写
-
-        url = self.downargs.get('url', None)
-        referer = url.split('?')[0]
-        url = re.search(r'[^?]+', url).group(0)
+        url = self.downargs.get('url')
         if 'https://changdunovel.com/wap/' in url:  # 处理番茄小说的分享链接
-            url = re.sub(r'^(\s*)\S+',
-                         'https://fanqienovel.com/page/' + re.search(r"book_id=([^&]+)", url).group(1),
-                         url)
-        if 'fanqienovel.com' in referer:
+            book_id = re.search(r"book_id=(\d+)", url).group(1)
+            url = 'https://fanqienovel.com/page/' + book_id
+        self.downargs['url'] = url.split('?')[0]  # 不带参数的url
+        url = url.split('?')[0]  # 不带参数的url
+        if 'fanqienovel.com' in url:
             self.Class_Novel = self.Class_Fanqie
-        elif 'qidian.com' in referer:
+        elif 'qidian.com' in url:
             self.Class_Novel = self.Class_Qidian
         else:
             print('不支持该网站，请检查链接')
@@ -186,15 +187,16 @@ class NovelDownloader:
 
     def download_novel(self, download_url):
         self.RunDriver.config(self.Class_Config)
-        driver = self.RunDriver.run()  # 获取webdriver
-        if driver:
-            soup = self.Class_GetHtml.get(download_url, driver, self.Class_Config.Wait_time)  # 获取soup
+        tab = self.RunDriver.run()  # 获取webdriver的标签页
+        if tab:
+            soup = self.Class_GetHtml.get(download_url, tab, self.Class_Config.Wait_time)  # 获取soup
+            self.Class_Novel.user_state(soup)
             if not self.Class_Novel.getpage(download_url, soup):  # 获取小说目录页
                 return False  # 找不到此书时
             if self.novel_update:
-                self.update()
+                self.update()  # 更新获取小说标题及连接
                 self.Class_Save.config(self.Class_Novel, self.Class_Config)
-                self.Class_Save.save(full_save=True)
+                self.Class_Save.save(full_save=True)  # 覆写模式保存
             if self.range:
                 self.range = range_split(self.range, len(self.Class_Novel.down_title_list))  # 分割范围成连续数字列表
                 self.Class_Novel.down_title_list = [self.Class_Novel.down_title_list[i - 1] for i in self.range]
@@ -206,13 +208,13 @@ class NovelDownloader:
                 down_progress.update(1)
                 try:
                     for title, url in zip(self.Class_Novel.down_title_list, self.Class_Novel.down_url_list):
-                        soup = self.Class_GetHtml.get(url, driver, self.Class_Config.Wait_time)
+                        soup = self.Class_GetHtml.get(url, tab, self.Class_Config.Wait_time)
                         self.Class_Novel.getnovel(title, url, soup)  # 提取小说
                         if self.Class_Config.Save_method:
                             self.Class_Save.save(title=title)  # 保存
                         down_progress.update(1)
                     # 更新阅读进度
-                    driver.get(self.Class_Novel.pro_url)
+                    tab.get(self.Class_Novel.pro_url)
                     if self.Class_Config.setting_config["Play_completion_sound"]:
                         winsound.MessageBeep(winsound.MB_OK)  # 播放完成音
                     return True
@@ -347,8 +349,11 @@ class NovelDownloader:
                                             else:
                                                 self.Class_Config.setting_config['Users'].append(user_input)
                                                 self.Class_Config.setting_config["User"] = user_input
+                                                self.Class_Config.url_config[user_input] = {"Default": {}}
                                                 self.Class_Config.save_config()
                                                 self.Class_Config.Main_user = user_input
+                                                self.Class_Config.setting_config['Group'] = 'Default'
+                                                self.Class_Config.Main_group = 'Default'
                                                 print(f"账户已创建成功({user_input})")
                                                 break
 
@@ -417,10 +422,11 @@ class NovelDownloader:
                                             print("已退出..")
                                         if re.match(r"\d+", option.strip()):
                                             option = int(option)
-                                            del_group = self.Class_Config.url_config[self.Class_Config.Main_user].pop(
-                                                groups[option - 1])
+                                            del_group = groups[option - 1]
                                             if del_group == self.Class_Config.Main_group:
-                                                self.Class_Config.url_config[self.Class_Config.Main_user] = groups[0]
+                                                groups.pop(option - 1)
+                                                self.Class_Config.url_config[self.Class_Config.Main_user].pop(del_group)
+                                                self.Class_Config.setting_config["Group"] = groups[0]
                                                 self.Class_Config.Main_group = groups[0]
                                                 print(f"分组 {del_group} 已删除成功({self.Class_Config.Main_group})")
                                             self.Class_Config.save_config()
@@ -432,18 +438,17 @@ class NovelDownloader:
 1.默认保存的群组（当前：{default_config['Group']}）：
 2.浏览器用户数据目录（当前：{default_config['User_data_dir']}）：
 3.延迟（当前：下限：{default_config['Wait_time'][0]}，上限：{default_config['Wait_time'][1]}）：
-4.保存方式（未实现）
 """)
                                 select = input().strip()
                                 if not re.match(r"\d", select):
                                     print("请输入数字\n已退出..")
-                                    break
+                                    continue
                                 match select:
                                     case "1":
                                         group_input = input("请输入分组名(前后不允许空格):").strip()
                                         if not group_input or 'r' in group_input.lower():
                                             print("不创建分组，已退出..")
-                                            break
+                                            continue
                                         self.Class_Config.setting_config['Default']['Group'] = group_input
                                         self.Class_Config.save_config()
 
@@ -493,13 +498,13 @@ class NovelDownloader:
                                                 print("请重新输入：")
                                                 continue
 
-                return True
             except KeyboardInterrupt:
                 code = input("是否退出？y/n")
                 if 'y' in code.lower() or 'Y' in code.lower():
                     sys.exit(0)
                 else:
                     continue
+        return True
 
     def __init__(self, logger_):
 
@@ -510,7 +515,7 @@ class NovelDownloader:
         self.range = None
         self.downargs = {}
         self.Class_Config = SetConfig(logger_)
-        self.Class_Check = CCheck(logger_)
+        self.Class_Check = CCheck()
         self.RunDriver = RunDriver(logger_)
         self.Class_GetHtml = GetHtml(self.RunDriver, self.Class_Config.setting_config['Play_completion_sound'], logger_)
         self.Class_Save = Save(logger_)
@@ -552,48 +557,13 @@ console_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
-init(autoreset=True)
 print(f"""
 作者：Canyang2008
 项目地址：https://github.com/canyang2008/NovelDownloader
 如果在使用过程中想反馈，欢迎参与讨论:
     QQ：765857967    issues：https://github.com/canyang2008/NovelDownloader/issues/1\n
 检查配置中……{Fore.YELLOW}注：格式化操作是删除data文件夹再次运行即可\n\n""")
-p = os.path.join(os.path.dirname(__file__), 'data')
-if not os.path.exists(os.path.join(os.path.dirname(__file__), 'data')):
-    print("data文件夹缺失，即将初始化")
-    Check.init_data_dir()
-    print("初始化成功")
-if os.path.exists("data/Record/UrlConfig.json"):
-    with open("data/Record/UrlConfig.json", encoding='utf-8') as f:
-        try:
-            url_config = json.load(f)
-            print(f"data/Record/UrlConfig.json  {Fore.LIGHTGREEN_EX}完整")
-        except json.decoder.JSONDecodeError:
-            print(f"data/Record/UrlConfig.json  {Fore.LIGHTYELLOW_EX}不完整，请检查配置文件UrlConfig.json是否损坏")
-            input()
-url_config_version = url_config.get('Version')
-if url_config_version != '1.0.1':
-    info = f'{Fore.LIGHTYELLOW_EX}不是最新版'
-else:
-    info = f'{Fore.LIGHTGREEN_EX}️通过'
-print(f"data/Record/UrlConfig.json的版本：{url_config_version}  最新版本：{'1.0.1'}  {info}")
-if url_config_version != '1.0.1':
-    Check.json_copy_to_root()
-with open("data/Record/SettingConfig.json", encoding='utf-8') as f:
-    try:
-        setting_config = json.load(f)
-        print(f"data/Record/SettingConfig.json  {Fore.LIGHTGREEN_EX}完整")
-    except json.decoder.JSONDecodeError:
-        print(f"data/Record/SettingConfig.json  {Fore.LIGHTYELLOW_EX}不完整，请检查配置文件SettingConfig.json是否损坏")
-        input()
-setting_config_version = setting_config.get('Version')
-if setting_config_version != '1.0.0':
-    info = f'{Fore.LIGHTYELLOW_EX}不是最新版'
-else:
-    info = f'{Fore.LIGHTGREEN_EX}️通过'
-print(f"data/Record/SettingConfig.json的版本：{url_config_version}  最新版本：{'1.0.0'}  {info}")
-
+Check.main()  # 检查
 sys.excepthook = global_exception_handler  # 设置全局异常处理器
 downloader = NovelDownloader(logger)
-downloader.func()
+downloader.func()  # 功能
