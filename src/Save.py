@@ -132,6 +132,7 @@ class Save:
 
         # 保存图片
         for img_alt, desc_imgurl in self.Class_Novel.img_items.items():
+            img_alt = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', img_alt)
             img_dir = self.save_config['json']['img_dir'] / img_alt
             img_dir.mkdir(parents=True, exist_ok=True)
             for desc, base64_data in desc_imgurl.items():
@@ -174,8 +175,7 @@ class Save:
                 end_idx = (i + 1) * gap
                 chunk_key = f"{start_idx}-{end_idx}"
                 if gap == 1: chunk_key = titles[start_idx - 1]
-                chunk_key = re.sub(r"[\\/*?|]", '_', chunk_key if chunk_key is not None else str(chunk_key))
-                chunk_key = chunk_key.replace('<', '《').replace('>', '》').replace(":", "；").replace("\"", "“").strip()
+                chunk_key = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', chunk_key)
                 if chunk_key not in self.txt_chunk_keys:
                     # 获取当前块包含的章节标题
                     start = i * gap

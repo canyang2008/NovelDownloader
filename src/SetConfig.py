@@ -60,6 +60,7 @@ class SetConfig:
 
         self.User = self.Main_user
         self.Group = self.Main_group
+        self.config_update = False
 
     def add_url_config(self, name, state):
         """添加或更新con.url_config中的配置"""
