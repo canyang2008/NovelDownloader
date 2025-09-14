@@ -197,6 +197,8 @@ class Fanqie:
 
         # 获取章节内容
         en_content_item = soup.find('div', class_='muye-reader-content noselect').find('div')
+        if en_content_item is None:
+            en_content_item = soup.find('div', class_='muye-reader-content noselect')
         en_content_text = ''
         if soup.find('div', class_='muye-to-fanqie'):  # 完整性检查
             integrity = False
@@ -209,7 +211,7 @@ class Fanqie:
                 if container.find('img'):  # 旧版番茄网站期间所存的小说有这种情况
                     img_url = container.find('img').get('src')
                     en_content_text += f'<&!img?group_id={group_id}/!&>'
-                    img_desc = group_id
+                    img_desc = f'({group_id})'
                     group_id += 1
                     img_data = base64.b64encode(requests.get(img_url).content).decode("utf-8")
                     img_data = "data:image/png;base64," + img_data
