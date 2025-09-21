@@ -1,0 +1,12 @@
+{
+    "VERSION": "1.1.0",
+    "README": "",
+    "USER": "Default",
+    "USERS": {
+      "Default": {
+        "User_config_path": "data/Local/Default/UserConfig.json",
+        "User_data_dir": "data/Local/Default/User Data",
+        "Base_dir": "data/Local/Default/json"
+      }
+    }
+  }
