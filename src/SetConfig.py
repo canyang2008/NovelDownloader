@@ -1,90 +1,201 @@
 import copy
 import json
-import time
-from pathlib import Path
-
+import os
 
 class SetConfig:
     """配置类"""
 
-    def __init__(self, logger_):
+    def __init__(self):
+        self.Api_option = None
+        self.Api_key = None
+        self.Play_completion_sound = None
+        self.Port = None
+        self.USER = "Default"
+        self.GROUP = "Default"
+        self.novel_update = False
+        self.Max_retry = 3
+        self.Timeout = 10
+        self.Interval = 2
+        self.Group = None
+        self.Save_method = None
+        self.Delay = [1, 3]
+        self.url = ""
+        self.mems = None
+        self.Base_dir = None
+        self.User_data_dir = None
+        self.User_data_dir = None
+        self.Get_mode = 0
+        self.User_config = None
+        self.User_config_path = None
+        self.User_manage = None
+        self.load()
+        self.Headless = False
 
-        self.logger = logger_
-        """初始化配置"""
-        self.config_url = None
-        with open('data/Record/UrlConfig.json', 'r', encoding='utf-8') as f:
-            self.url_config = json.load(f)
-        with open('data/Record/SettingConfig.json', 'r', encoding='utf-8') as f:
-            self.setting_config = json.load(f)
-        self.setting_config['Program_location'] = str(Path(__file__).parent.resolve())  # 程序位置
-        self.Main_user = self.setting_config.get('User')
-        self.User = self.Main_user
-        self.Group = self.setting_config.get('Group')
-        self.Main_group = self.Group
-        default_config = self.setting_config['Default']
-        # 如果下载链接不在任何组的配置中，使用默认配置
-        self.User_data_dir = default_config.get('User_data_dir')
-        self.Wait_time = default_config.get('Wait_time')
-        self.Save_method = default_config.get('Save_method')
-        self.Save_method = copy.deepcopy(self.Save_method)
-        self.config_update = False
+    def load(self):
+        # 读取所有用户管理配置
+        with open("data/Local/manage.json", "r", encoding="utf-8") as f:
+            self.User_manage = json.load(f)
 
-    def save_config(self):
-        """保存配置"""
-        url_config_format = json.dumps(self.url_config, ensure_ascii=False, indent=2)  # 防止写入中断
-        with open('data/Record/UrlConfig.json', 'w', encoding='utf-8') as f:
-            f.write(url_config_format)
+        # 读取当前用户所配置的文件目录/路径
+        self.USER = self.User_manage.get("USER", "Default")
+        default_user_config = {
+            "User_config_path": f"data/Local/{self.USER}/UserConfig.json",
+            "User_data_dir": f"data/Local/{self.USER}/User Data",
+            "Base_dir": f"data/Local/{self.USER}/json"}
+        user_config_paths = self.User_manage["USERS"].get(self.USER, default_user_config)
+        self.User_config_path = user_config_paths.get("User_config_path", default_user_config["User_config_path"])
+        self.User_data_dir = user_config_paths.get("User_data_dir", default_user_config["User_data_dir"])
+        self.Base_dir = user_config_paths.get("Base_dir", default_user_config["Base_dir"])
 
-        setting_config_format = json.dumps(self.setting_config, ensure_ascii=False, indent=2)  # 防止写入中断
-        with open('data/Record/SettingConfig.json', 'w', encoding='utf-8') as f:
-            f.write(setting_config_format)
+        # 读取用户配置(UserConfig.json)
+        with open(self.User_config_path, "r", encoding="utf-8") as f:
+            self.User_config = json.load(f)
+        self.GROUP = self.User_config.get("Group", "Default")
+        self.Group = self.GROUP
+        self.Get_mode = self.User_config.get("Get_mode", 0)
+        self.Save_method = self.User_config.get("Save_method")
+        if self.Get_mode == 0:
+            self.Port = self.User_config["Browser"].get("Port", 9444)
+            self.Max_retry = self.User_config["Browser"].get("Max_retry", 3)
+            self.Timeout = self.User_config["Browser"].get("Timeout", 10)
+            self.Interval = self.User_config["Browser"].get("Interval", 2)
+            self.Delay = self.User_config["Browser"].get("Delay", [1, 3])
+
+        self.Play_completion_sound = self.User_config.get("Play_completion_sound", False)
+
+        # 读取mems.json
+        with open(os.path.join(self.Base_dir, 'mems.json'), "r", encoding="utf-8") as f:
+            self.mems = json.load(f)
+
+    def set_new_userconfig(self, user_name):
+        self.User_manage["USERS"][user_name] = {
+            "User_config_path": f"data/Local/{user_name}/UserConfig.json",
+            "User_data_dir": f"data/Local/{user_name}/User Data",
+            "Base_dir": f"data/Local/{user_name}/json"}
+        self.User_config["USER"] = user_name
+        new_user_config = {
+            "Version": "1.1.0",
+            "User_name": user_name,
+            "Group": "Default",
+            "README": "",
+            "Play_completion_sound": False,
+            "Get_mode": 0,
+            "Browser": {
+                "State": {
+                    "Fanqie": -1,
+                    "Qidian": 0,
+                    "Bqg128": 0
+                },
+                "Timeout": 10,
+                "Max_retry": 3,
+                "Interval": 2,
+                "Delay": [
+                    1,
+                    3
+                ],
+                "Port": 9444 + len(self.User_manage["USERS"].keys()),
+                "Headless": False
+            },
+            "Api": {
+                "Fanqie": {
+                    "Option": "oiapi",
+                    "oiapi": {
+                        "Max_retry": 3,
+                        "Timeout": 10,
+                        "Interval": 2,
+                        "Delay": [
+                            1,
+                            3
+                        ],
+                        "Key": ""
+                    }
+                }
+            },
+            "Save_method": {
+                "json": {
+                    "name": "name_default",
+                    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+                    "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
+                },
+                "txt": {
+                    "name": "name_default",
+                    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+                    "gap": 0,
+                    "max_filesize": -1
+                },
+                "html": {
+                    "name": "name_default",
+                    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+                    "one_file": False
+                }
+            },
+            "Unprocess": []
+        }
+        with open(f"data/Local/{user_name}/UserConfig.json", 'w', encoding='utf-8') as f:
+            json.dump(new_user_config, f, ensure_ascii=False, indent=4)
+        self.save_config(2)
+        self.load()
+
+    def set_config(self, url, read):
+        if read:
+            for group in self.mems.keys():
+                if group == "Version": continue
+                if url in self.mems[group].keys():  # 如果url存在于成员内
+                    self.novel_update = True
+                    self.Group = group
+                    file_name = self.mems[group][url] + ".json"
+                    with open(os.path.join("data", "Local", self.USER, "json", file_name), "r", encoding="utf-8") as f:
+                        novel_config = json.load(f)['config']
+                    self.Get_mode = novel_config.get("Get_mode", 0)
+                    self.Max_retry = novel_config.get("Max_retry", 3)
+                    self.Timeout = novel_config.get("Timeout", 10)
+                    self.Interval = novel_config.get("Interval", 2)
+                    self.Delay = novel_config.get("Delay", [1, 3])
+                    self.Save_method = copy.deepcopy(novel_config["Save_method"])
+                    return None
+
+        self.Group = self.GROUP
+        if self.Get_mode == 1:
+            if 'fanqienovel.com' in url:
+                website = 'Fanqie'
+            elif 'qidian.com' in url:
+                website = 'Qidian'
+            else:
+                print('不支持该网站，请检查链接')
+                return False
+            self.Api_option = self.User_config["Api"][website]["Option"]
+            api_config = self.User_config["Api"][website][self.Api_option]
+            self.Max_retry = api_config.get("Max_retry", 3)
+            self.Timeout = api_config.get("Timeout", 10)
+            self.Interval = api_config.get("Interval", 2)
+            self.Delay = api_config.get("Delay", [1, 3])
+            if self.Api_option == "oiapi":
+                self.Api_key = api_config.get("Key")
+        else:
+            self.Port = self.User_config["Browser"].get("Port", 9445)
+            self.Max_retry = self.User_config['Browser'].get("Max_retry", 3)
+            self.Timeout = self.User_config['Browser'].get("Timeout", 10)
+            self.Interval = self.User_config['Browser'].get("Interval", 2)
+            self.Delay = self.User_config['Browser'].get("Delay", [1, 3])
+        self.novel_update = False
+        return None
+
+    def save_config(self, option=0):
+
+        match option:
+            case 0:  # 保存mems.json
+                mems_format = json.dumps(self.mems, ensure_ascii=False, indent=4)
+                with open(os.path.join(self.Base_dir, 'mems.json'), "w", encoding="utf-8") as f:
+                    f.write(mems_format)
+
+            case 1:  # 保存UserConfig.json
+                user_config_format = json.dumps(self.User_config, ensure_ascii=False, indent=4)
+                with open(self.User_config_path, "w", encoding="utf-8") as f:
+                    f.write(user_config_format)
+
+            case 2:  # 保存manage.json
+                manage_format = json.dumps(self.User_manage, ensure_ascii=False, indent=4)
+                with open("data/Local/manage.json", "w", encoding="utf-8") as f:
+                    f.write(manage_format)
 
         return True
-
-    def set_url_config(self, config_url):
-        """设置下载链接的配置"""
-        self.config_url = config_url
-
-        for user in self.url_config.keys():
-            if user == "Version": continue
-            for group in self.url_config[user].keys():
-                # 如果下载链接在当前组的配置中
-                if config_url in self.url_config[user][group].keys():
-                    self.User = user
-                    self.Group = group
-                    self.User_data_dir = self.url_config[user][group][config_url].get('User_data_dir')
-                    self.Wait_time = self.url_config[user][group][config_url].get('Wait_time')
-                    self.Save_method = self.url_config[user][group][config_url].get('Save_method')
-                    self.config_update = True
-                    return
-
-        self.User = self.Main_user
-        self.Group = self.Main_group
-        self.config_update = False
-
-    def add_url_config(self, name, state):
-        """添加或更新con.url_config中的配置"""
-        if self.config_update:
-            self.url_config[self.User][self.Group][self.config_url]['Name'] = name
-            self.url_config[self.User][self.Group][self.config_url]['State'] = state
-            self.url_config[self.User][self.Group][self.config_url]['Last_control_timestamp'] = time.time()
-            self.url_config[self.User][self.Group][self.config_url]['Last_control_time'] = time.strftime(
-                '%Y-%m-%d %H:%M:%S',
-                                                                                              time.localtime(
-                                                                                                  time.time()))
-        else:
-            # 创建一个新的记录
-            if self.User not in self.url_config.keys(): self.url_config[self.User] = {}  # 创建新的账户
-            if self.Group not in self.url_config[self.User].keys(): self.url_config[self.User][self.Group] = {}  # 创建新的组
-            self.url_config[self.User][self.Group][self.config_url] = {
-                'Name': name,
-                'State': state,
-                'User_data_dir': self.User_data_dir,
-                'Save_method': self.Save_method,
-                'Wait_time': self.Wait_time,
-                'First_timestamp': time.time(),
-                'First_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
-                'Last_control_timestamp': time.time(),
-                'Last_control_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
-            }
-            self.config_update = True

@@ -1,26 +1,40 @@
 import base64
+import json
+import random
 import re
 import time
-from datetime import datetime
 
 import requests
+import winsound
+from DrissionPage.errors import BaseError, WaitTimeoutError
+from bs4 import BeautifulSoup, Tag
 from colorama import init, Fore
+from win10toast import ToastNotifier
 
 init(autoreset=True)
-class Fanqie:
-    def __init__(self, logger_):
 
+
+class Fanqie:
+    def __init__(self, logger_, Class_Novel, Class_Config, Class_Driver):
+
+        self.Class_Driver = None
         self.logger = logger_
         self.down_url_list = []
         self.down_title_list = []
         self.pro_url = ''
         self.all_url_list = []
         self.all_title_list = []
-        self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
+        self.novel = {'version': '1.1.0', 'info': {}, 'chapters': {}, "config": {}}
         self.img_items = {}
+        self.Class_Novel = None
+        self.Class_Config = None
         self.user_state_code = -1  # 用户状态码 -1:未登录状态； 0：无vip； 1：标准
+        self.Class_Novel = Class_Novel
+        self.Class_Config = Class_Config
+        self.Class_Driver = Class_Driver
 
-    def user_state(self, soup):
+    def user_state_for_html(self, html):
+        soup = BeautifulSoup(html, 'lxml')
         user_info_div = soup.find("div", class_="slogin-user-avatar__info")
         if user_info_div.find('img'):  # 有图片证明已登录
             self.user_state_code = 0
@@ -40,30 +54,45 @@ class Fanqie:
             case 1:
                 print(f"{Fore.GREEN}番茄账号已登录且有vip")
 
-
-    def getpage(
+    def _get_page_for_html(
             self,
             url: str,
-            soup
+            html
     ):
-        self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
-        # 找不到网页内容时
-        if soup.find('div', class_='no-content'):
-            print('找不到此书')
-            return False
-        name = soup.find('div', class_='info-name').get_text()
-        author = soup.find('span', class_='author-name-text').get_text()
-        author_desc = soup.find('div', class_='author-desc').get_text()
-        label = soup.find('div', class_='info-label').find_all('span')
-        label = ' '.join([i.get_text() for i in label])  # 标签
-        count_word = soup.find('div', class_='info-count-word').find_all('span')
-        count_word = ''.join([i.get_text() for i in count_word])
-        last_update = soup.find('div', class_='info-last').find_all('span')
-        last_update = ' '.join([i.get_text() for i in last_update])
-        abstract = soup.find('div', class_='page-abstract-content').find('p').get_text()  # 作品简介
-        book_cover_url = soup.find('img', class_='book-cover-img loaded').get('src')  # 封面图片链接
+        self.novel = {'version': '1.1.0', 'info': {}, 'chapters': {}, "config": {}}
+        start = html.find("window.__INITIAL_STATE__=") + len("window.__INITIAL_STATE__=")
+        start_html = html[start:]
+        end = start_html.find(")()")
+        script = start_html[:end].strip()[:-1].strip()[:-1]
+        json_data = json.loads(script)
+        name = json_data.get('page').get("bookName")
+        author = json_data.get('page').get("author")
+        author_desc = json_data.get('page').get("description")
+        label_item_str = json_data.get('page').get("categoryV2")
+        label_item_list = json.loads(label_item_str)
+        status = json_data.get('page').get("creationStatus")
+        label_list = []
+        if status == 1:
+            label_list.append("连载中")
+        else:
+            label_list.append("已完结")
+        for label_item in label_item_list:
+            label_list.append(label_item.get("Name"))
+        label = ' '.join(label_list)
+        count_word = str(json_data.get('page').get("wordNumber")) + "字"
+        last_update_of_title = json_data.get('page').get("lastChapterTitle")
+        last_update_of_time = time.strftime("%Y-%m-%d %H:%M:%S",
+                                            time.localtime(int(json_data.get('page').get("lastPublishTime"))))
+        last_update = f"最近更新：{last_update_of_title} {last_update_of_time}"
+        abstract = json_data.get('page').get("abstract")
+        book_cover_url = json_data.get('page').get("thumbUri")
         book_cover_data = base64.b64encode(requests.get(book_cover_url).content).decode("utf-8")
-        web_chapter_list = soup.find_all('a', class_='chapter-item-title')  # 章节列表链接
+        chapter_list_with_volume = json_data.get("page").get("chapterListWithVolume")
+        self.all_title_list = []
+        for chapter_list in chapter_list_with_volume:
+            for chapter_item in chapter_list:
+                self.all_title_list.append(chapter_item.get("title"))
+                self.all_url_list.append('https://fanqienovel.com/reader/' + chapter_item.get("itemId"))
         # 更新小说信息
         self.novel['info']['name'] = name
         self.novel['info']['author'] = author
@@ -75,51 +104,16 @@ class Fanqie:
         self.novel['info']['book_cover_data'] = "data:image/png;base64," + book_cover_data
         self.novel['info']['url'] = url
         self.img_items['封面图片'] = {name: self.novel['info']['book_cover_data']}
-        # 获取章节列表
-        self.all_title_list = [title.get_text() for title in web_chapter_list]
-        self.all_url_list = ['https://fanqienovel.com' + web_url.get('href') for web_url in web_chapter_list]
-        self.pro_url = self.all_url_list[0]  # 阅读进度
-        del self.all_title_list[0], self.all_url_list[0]  # 删除继续阅读部分的章节
         # 更新下载列表
         self.down_url_list, self.down_title_list = self.all_url_list, self.all_title_list
         return True
 
-    def getnovel(
+    def _get_novel_for_html(
             self,
             title: str,
             url: str,
-            soup,
+            html,
     ):
-        # 获取更新时间和字数
-        time_word = soup.find_all('span', class_='desc-item')
-        count_word = time_word[0].text
-        update_time = time_word[1].text
-
-        if "分钟前" in update_time:  # 当更新时间显示为n分钟前时
-            minute = int(re.findall(r'\d+', update_time)[0]) * 60
-            current_time = time.time()
-            accurate_time = current_time - minute
-            update_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(accurate_time))
-
-        if "小时前" in update_time:  # 当更新时间显示为n小时前时
-            hour = int(re.findall(r'\d+', update_time)[0]) * 60 * 60
-            current_time = time.time()
-            accurate_time = current_time - hour
-            update_time = time.strftime("%Y-%m-%d %H", time.localtime(accurate_time))
-
-        if "天前" in update_time:  # 当更新时间显示为n天前时
-            day = int(re.findall(r'\d+', update_time)[0]) * 60 * 60 * 24
-            current_time = time.time()
-            accurate_time = current_time - day
-            update_time = time.strftime("%Y-%m-%d", time.localtime(accurate_time))
-
-        if "昨天" in update_time:  # 当更新时间显示为昨天时
-            current_time = time.time()
-            accurate_time = current_time - 60 * 60 * 24
-            update_time = time.strftime("%Y-%m-%d", time.localtime(accurate_time))
-
-        if update_time.count('-') == 1:  # 当没有年份时补上年份
-            update_time = f"{datetime.now().year}-{update_time}"
 
         # 转码表
         transcoding = {"58670": "0", "58413": "1", "58678": "2", "58371": "3", "58353": "4", "58480": "5", "58359": "6",
@@ -184,7 +178,7 @@ class Fanqie:
 
         def translate(en_text):  # 转换乱码
             if not en_text: return ''
-            text = ''
+            de_text = ''
             for index in en_text:
                 t1 = ''
                 try:
@@ -192,53 +186,103 @@ class Fanqie:
                 except KeyError:
                     t1 = index
                 finally:
-                    text += t1
-            return text
+                    de_text += t1
+            return de_text
 
-        # 获取章节内容
-        en_content_item = soup.find('div', class_='muye-reader-content noselect').find('div')
-        if en_content_item is None:
-            en_content_item = soup.find('div', class_='muye-reader-content noselect')
-        en_content_text = ''
-        if soup.find('div', class_='muye-to-fanqie'):  # 完整性检查
+        start = html.find("window.__INITIAL_STATE__=") + len("window.__INITIAL_STATE__=")
+        start_html = html[start:]
+        end = start_html.find(")()")
+        script = start_html[:end].strip()[:-1].strip()[:-1]
+        script = script.replace('"libra":undefined', '"libra":"undefined"')
+        json_data = json.loads(script)
+        update_time = "更新时间：" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(
+            int(json_data.get("reader").get("chapterData").get("firstPassTime"))))
+        count_word = "本章字数：" + json_data.get('reader').get("chapterData").get("chapterWordNumber")
+        parent_soup = BeautifulSoup(html, 'lxml')
+        if parent_soup.find('div', class_='muye-to-fanqie'):  # 完整性检查
             integrity = False
         else:
             integrity = True
-        group_id = 1
-        img_item = {}
-        for container in en_content_item:
-            if container.name == 'p':
-                if container.find('img'):  # 旧版番茄网站期间所存的小说有这种情况
-                    img_url = container.find('img').get('src')
-                    en_content_text += f'<&!img?group_id={group_id}/!&>'
-                    img_desc = f'({group_id})'
-                    group_id += 1
-                    img_data = base64.b64encode(requests.get(img_url).content).decode("utf-8")
-                    img_data = "data:image/png;base64," + img_data
-                    img_item[img_desc] = img_data
-                    self.img_items[title] = img_item.copy()
-                en_content_text += container.get_text() + '\n\t'
-            elif container.name == 'div':  # 当有插图时
-                img_url = container.find('img').get('src')
-                en_content_text += f'<&!img?group_id={group_id}/!&>'
-                try:
-                    en_img_desc = container.find_all('p')[1].get_text()
-                except IndexError:  # 旧版番茄网站期间所存的小说有这种情况
-                    en_img_desc = ''
+        html_content = str(parent_soup.find('div', class_='muye-reader-content noselect'))
+        soup = BeautifulSoup(translate(html_content), 'lxml')
+        con = str(soup)
+        img_counter = 0
+        img_dict = {}
 
-                img_desc = translate(en_img_desc)
-                if img_desc.strip() == '':
-                    img_desc = f'({group_id})'
-                else:
-                    img_desc = f'({group_id}) {img_desc}'
-                group_id += 1
-                img_data = base64.b64encode(requests.get(img_url).content).decode("utf-8")
-                img_data = "data:image/png;base64," + img_data
-                img_item[img_desc] = img_data
-                self.img_items[title] = img_item.copy()
+        # 处理所有图片标签
+        img_tags = soup.find_all('img')
+        for img in img_tags:
+            img_counter += 1
+            group_id = img_counter
 
-        novel_content = translate(en_content_text)
-        novel_content = '\t' + novel_content
+            # 获取图片描述
+            picture_desc = ""
+            parent = img.parent
+            while parent and isinstance(parent, Tag):
+                # 检查是否有pictureDesc兄弟元素
+                if parent.name == 'div' and parent.get('data-fanqie-type') == 'image':
+                    picture_desc_tag = parent.find('p', class_='pictureDesc')
+                    if (picture_desc_tag and
+                            isinstance(picture_desc_tag, Tag) and
+                            picture_desc_tag.get('group-id') == str(group_id)):
+                        picture_desc = picture_desc_tag.get_text(strip=True)
+                        break
+
+                # 检查当前元素是否有pictureDesc类
+                if (parent.name == 'p' and
+                        'pictureDesc' in (parent.get('class') or [])):
+                    picture_desc = parent.get_text(strip=True)
+                    break
+
+                parent = parent.parent
+
+            # 构建字典键
+            if picture_desc:
+                dict_key = f"({group_id}) {picture_desc}"
+            else:
+                dict_key = f"({group_id})"
+
+            img_url = img.get('src', '')
+            img_data = base64.b64encode(requests.get(img_url).content).decode("utf-8")
+            img_data = "data:image/png;base64," + img_data
+            # 添加到图片字典
+            img_dict[dict_key] = img_data
+
+            # 替换图片为指定文本 - 创建一个新的 NavigableString
+            replacement_text = soup.new_string(f'<&!img?group_id={group_id}/!&>')
+            img.replace_with(replacement_text)
+
+        # 提取所有段落文本，保留<img>替换标记
+        content_div = soup.find('div', class_='muye-reader-content')
+        text_content = []
+        if content_div:
+            # 遍历所有元素
+            for element in content_div.descendants:
+                # 处理字符串元素
+                if isinstance(element, str):
+                    text = element.strip()
+                    if text:
+                        # 检查是否是图片替换标记
+                        if text.startswith('<&!img?group_id=') and text.endswith('/!&>'):
+                            text_content.append(text)
+                        else:
+                            text_content.append(text)
+
+                # 处理标签元素
+                elif isinstance(element, Tag) and element.name == 'p':
+                    # 跳过图片描述段落
+                    if 'pictureDesc' in (element.get('class') or []):
+                        continue
+
+                    text = element.get_text(strip=True)
+                    if text:
+                        text_content.append(text)
+        if img_dict:
+            self.img_items[title] = img_dict
+        text_content = [text_content[i] for i in range(0, len(text_content), 2)]
+        novel_content = '\t' + "\n\t".join(text_content)
+        if '143' in title:
+            pass
         self.novel['chapters'][title] = {
             'url': url,
             'update': update_time,
@@ -246,6 +290,102 @@ class Fanqie:
             'content': novel_content.replace('已经是最新一章',
                                              '') if '已经是最新一章' in novel_content else novel_content,
             'integrity': integrity,
-            'img_item': img_item
+            'img_item': img_dict
         }
+        return True
+
+    def _get_novel_for_oiapi(self, index, chapter_url, page_url):
+        headers = {
+            'Referer': "https://oiapi.net/doc/?id=115",
+            'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0",
+            'Cookies': "PHPSESSID=88caaf053aca691c041f0e930a9ff699",
+            "Origin": "https://oiapi.net",
+        }
+        post_data = {
+            "chapter": str(index),
+            "id": re.search(r'page/(\d+)', page_url).group(1),
+            "key": self.Class_Config.Api_key,
+            "type": "json"
+        }
+        response = requests.post("https://oiapi.net/api/FqRead", data=post_data, headers=headers).json()
+        message = response['message']
+        data = response.get('data')
+        if not data:
+            print(f"oiapi出现错误\nmessage:{message}")
+            return False
+        else:
+            chapter_data = data[0]
+            title = chapter_data['chapter_title']
+            update_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(chapter_data['time']))
+            count_word = chapter_data['word_number']
+            content = chapter_data['content']
+            self.Class_Novel['chapters'][title] = {
+                "url": chapter_url,
+                "update": f"更新时间：{update_time}",
+                "count_word": f"本章字数：{count_word}",
+                "content": content.replace('已经是最新一章',
+                                           '') if '已经是最新一章' in content else content,
+                'integrity': True,
+                'img_item': {}
+            }
+            return True
+
+    def _get_soup_for_browser(self, url):
+        if "page" in url:
+            class_name = ".page-directory-content"
+        elif "reader" in url:
+            class_name = ".muye-reader-content noselect"
+        else:
+            class_name = None
+        try:
+            self.Class_Driver.tab.get(url)
+            time.sleep(random.uniform(self.Class_Config.Delay[0], self.Class_Config.Delay[1]))
+            if not self.Class_Driver.tab.states.is_alive: raise BaseError
+            self.Class_Driver.tab.wait.eles_loaded(
+                class_name, raise_err=True)  # 分别为番茄目录页、起点目录页、番茄章节内容页、起点章节内容页（class）
+            html = self.Class_Driver.tab.raw_data
+            return html
+        except WaitTimeoutError:
+            if self.Class_Driver.tab.get_frames():
+                toast = ToastNotifier()
+                toast.show_toast(
+                    title="验证码拦截",
+                    msg="请完成验证码",
+                    icon_path=None,
+                    duration=3
+                )
+                if self.Class_Config.Play_completion_sound:
+                    winsound.MessageBeep(winsound.MB_OK)
+                    time.sleep(1)
+                    winsound.MessageBeep(winsound.MB_OK)
+                input("请完成验证码...\n完成后按Enter继续")
+                return self._get_soup_for_browser(url)
+        except BaseError:
+            self.Class_Driver.tab = self.Class_Driver.run()
+            return self._get_soup_for_browser(url)
+        return True
+
+
+    def get_page(self, url):  # 获取小说info和所有链接与标题
+
+        if self.Class_Config.Get_mode == 0:  # 浏览器模式
+            html = self._get_soup_for_browser(url)
+            self.user_state_for_html(html)  # 用户状态
+        else:
+            html = requests.get(url).text
+            if "page-directory-content" not in html:
+                print("获取所有目录页出现问题")
+                return False
+        self._get_page_for_html(url, html)
+        return True
+
+    def download(self, title, chapter_url, index=0, page_url=None):
+        if self.Class_Config.Get_mode == 0:
+            html = self._get_soup_for_browser(chapter_url)
+            self._get_novel_for_html(title, chapter_url, html)
+
+        else:
+            match self.Class_Config.Api_option:
+                case 'oiapi':
+                    if not self._get_novel_for_oiapi(index, chapter_url, page_url): return False
         return True

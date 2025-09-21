@@ -1,10 +1,17 @@
 import base64
+import random
+import time
 
 import requests
+import winsound
+from DrissionPage.errors import BaseError, WaitTimeoutError
+from bs4 import BeautifulSoup
+from colorama import Fore
+from win10toast import ToastNotifier
 
 
 class Qidian:
-    def __init__(self, logger_):
+    def __init__(self, logger_, Class_Novel, Class_Config, Class_Driver):
 
         self.logger = logger_
         self.img_items = {}
@@ -15,16 +22,65 @@ class Qidian:
         self.all_title_list = []
         self.desc_figural = {}
         self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
+        self.user_state_code = -1  # 用户状态码 -1:未登录状态； 1：标准
+        self.Class_Novel = Class_Novel
+        self.Class_Config = Class_Config
+        self.Class_Driver = Class_Driver
 
-    def user_state(self, soup):
+    def user_state_for_html(self, html):
+        soup = BeautifulSoup(html, 'lxml')
+        user_info_div = soup.find("div", class_="ml-auto text-s-gray-900 text-bo2 relative group")
+        if user_info_div.find('Button'):
+            self.user_state_code = -1
+        if user_info_div.find("a", class_="block flex items-center hover:text-primary-red-500 py-10px px-32px"):
+            self.user_state_code = 1
+        match self.user_state_code:
+            case -1:
+                print(f"{Fore.YELLOW}起点账号未登录")
+            case 1:
+                print(f"{Fore.GREEN}起点账号已登录")
         pass
 
+    def _get_soup_for_browser(self, url):
+        if "book" in url:
+            class_name = "#bookCatalogSection"
+        elif "chapter" in url:
+            class_name = ".content-text"
+        else:
+            class_name = None
+        try:
+            self.Class_Driver.tab.get(url)
+            time.sleep(random.randint(self.Class_Config.Delay[0], self.Class_Config.Delay[1]))
+            if not self.Class_Driver.tab.states.is_alive: raise BaseError
+            self.Class_Driver.tab.wait.eles_loaded(
+                class_name, raise_err=True)  # 起点目录页、起点章节内容页（class）
+            html = self.Class_Driver.tab.raw_data
+            return html
+        except WaitTimeoutError:
+            if self.Class_Driver.tab.get_frames():
+                toast = ToastNotifier()
+                toast.show_toast(
+                    title="验证码拦截",
+                    msg="请完成验证码",
+                    icon_path=None,
+                    duration=3
+                )
+                if self.Class_Config.Play_completion_sound:
+                    winsound.MessageBeep(winsound.MB_OK)
+                    time.sleep(1)
+                    winsound.MessageBeep(winsound.MB_OK)
+                input("请完成验证码...\n完成后按Enter继续")
+                return self._get_soup_for_browser(url)
+        except BaseError:
+            self.Class_Driver.tab = self.Class_Driver.run()
+            return self._get_soup_for_browser(url)
+        return True
 
-    def getpage(
+    def get_page(
             self,
             url: str,
-            soup
     ):
+        soup = BeautifulSoup(self._get_soup_for_browser(url), 'lxml')
         self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
         if soup.find('div', class_='wrap error-wrap'):
             print('Cannot find this book')
@@ -70,13 +126,11 @@ class Qidian:
         self.down_url_list, self.down_title_list = self.all_url_list, self.all_title_list
         return True
 
-    def getnovel(
-            self,
-            title: str,
-            url: str,
-            soup,
-    ):
-        count_word = soup.find('span', class_='group inline-flex items-center mr-16px').get_text().replace('123 ', '')
+    def download(self, title, chapter_url, index=0, page_url=None):
+        html = self._get_soup_for_browser(chapter_url)
+        soup = BeautifulSoup(html, 'lxml')
+        count_word = \
+        soup.find('span', class_='group inline-flex items-center mr-16px').get_text().replace('123 ', '').split()[1]
         update_time = soup.find('span', class_='chapter-date').get_text()
         novel_content = soup.find_all('span', class_='content-text')
         novel_content = '\n'.join([i.get_text() for i in novel_content])
@@ -87,7 +141,7 @@ class Qidian:
             integrity = True
         # 更新小说信息
         self.novel['chapters'][title] = {
-            'url': url,
+            'url': chapter_url,
             'update': update_time,
             'count_word': count_word,
             'content': novel_content.replace('已经是最新一章', ''),

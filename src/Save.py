@@ -4,10 +4,8 @@ import json
 import math
 import os
 import re
-import shutil
+import time
 from pathlib import Path
-
-import msgpack
 
 
 class Save:
@@ -28,7 +26,8 @@ class Save:
         self.Class_Config = Class_Config
         # 全局：小说名字和小说信息文本
         self.save_config = copy.deepcopy(self.Class_Config.Save_method)
-        self.save_config['novel_name'] = novel_name = self.Class_Novel.novel['info']['name']
+        novel_name = self.Class_Novel.novel['info']['name']
+        self.save_config['novel_name'] = novel_name
         novel_info = self.Class_Novel.novel['info']
         novel_abstract = novel_info['abstract'].replace('\n', '\n\t')
         if 'txt' in self.save_config.keys():
@@ -45,7 +44,7 @@ class Save:
             path_parts = list(Path(self.Class_Config.Save_method[file_format]['dir']).parts)
             if '<User>' in path_parts:
                 tp = path_parts.index('<User>')
-                path_parts[tp] = self.Class_Config.User
+                path_parts[tp] = self.Class_Config.USER
             if '<Group>' in path_parts:
                 tp = path_parts.index('<Group>')
                 path_parts[tp] = self.Class_Config.Group
@@ -60,7 +59,7 @@ class Save:
                 path_parts = list(Path(self.Class_Config.Save_method[file_format]['img_dir']).parts)
                 if '<User>' in path_parts:
                     tp = path_parts.index('<User>')
-                    path_parts[tp] = self.Class_Config.User
+                    path_parts[tp] = self.Class_Config.USER
                 if '<Group>' in path_parts:
                     tp = path_parts.index('<Group>')
                     path_parts[tp] = self.Class_Config.Group
@@ -91,6 +90,26 @@ class Save:
             config['dir'].mkdir(parents=True, exist_ok=True)
             # === 配置准备结束 ===
 
+        # 小说配置
+        timestamp = time.time()
+        self.Class_Config.mems[self.Class_Config.Group][self.Class_Novel.novel['info']['url']] = \
+        self.Class_Novel.novel['info']['name']
+        novel_config = {
+            "Version": "1.1.0",
+            "Name": self.Class_Novel.novel['info']['name'],
+            "Group": self.Class_Config.Group,
+            "State": self.Class_Novel.novel['info']['label'].strip()[:3],
+            "Max_retry": self.Class_Config.Max_retry,
+            "Timeout": self.Class_Config.Timeout,
+            "Interval": self.Class_Config.Interval,
+            "Delay": self.Class_Config.Delay,
+            "Save_method": self.Class_Config.Save_method,
+            "First_time_stamp": timestamp,
+            "First_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp)),
+            'Last_control_timestamp': timestamp,
+            'Last_control_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp)),
+        }
+        self.Class_Novel.novel['config'] = novel_config
         return
 
     def save(self, full_save=False, title=None):
@@ -108,21 +127,24 @@ class Save:
     def json_save(self, full_save=False):
 
         # 根JSON保存
-        root_path = os.path.join(os.getenv("LOCALAPPDATA"), "CyNovelbase",
-                                 "data", self.Class_Config.Main_user, "json",
-                                 self.Class_Novel.novel['info']['name'] + '.json')
-        os.makedirs(os.path.dirname(root_path), exist_ok=True)
-        with open(root_path, 'wb') as f:
-            msgpack.dump(self.Class_Novel.novel, f)
+        base_dir = self.Class_Config.Base_dir
+        os.makedirs(base_dir, exist_ok=True)
+        file_name = self.Class_Novel.novel["info"]["name"] + ".json"
+        # 最后一次控制时间更新
+        timestamp = time.time()
+        self.Class_Novel.novel["config"]["Last_control_timestamp"] = timestamp
+        self.Class_Novel.novel["config"]["Last_control_time"] = time.strftime('%Y-%m-%d %H:%M:%S',
+                                                                              time.localtime(timestamp))
 
         # 保存JSON文件
-        json_content = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
+        json_content = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+        with open(os.path.join(base_dir, file_name), 'w', encoding='utf-8') as f:
+            f.write(json_content)
+
         with open(self.save_config['json']['filepath'], 'w', encoding='utf-8') as f:
             f.write(json_content)
 
         """执行保存操作"""
-        self.Class_Config.add_url_config(name=self.save_config['novel_name'],
-                                         state=self.Class_Novel.novel['info']['label'][:3])  # 更新配置文件
         self.Class_Config.save_config()
 
         if full_save:  # 以保存所有的图片
@@ -298,39 +320,46 @@ class Save:
     def html_save(self, full_save=False, title=None):
         # 此html阅读器蓝本由deepseek及豆包被调校后提供
 
-        with open(r'data\Record\template.html', encoding='utf-8') as f:
+        with open(r'data\Local\template.html', encoding='utf-8') as f:
             template = f.read()
         html_path = self.save_config['html']['dir'] / 'index.html'
+        """
         if not self.save_config['html']['one_file']:
-            self.save_config['html']['dir'] = self.save_config['html']['dir'] / 'html'
             img_dir = self.save_config['html']['dir'] / 'Img'
             shutil.copytree(self.save_config['json']['img_dir'], img_dir, dirs_exist_ok=True)
             if not full_save:
-                img_item = self.Class_Novel.novel['chapters'][title]['img_item']
+                origin_img_items = {}
+                img_item = self.Class_Novel.novel['chapters'][title]['img_item'].copy()
+                origin_img_items[title] = img_item.copy()
                 for desc, data in img_item.items():
                     data = str(img_dir / title / desc) + '.png'
                     img_item[desc] = os.path.relpath(data, self.save_config['html']['dir'])
                 self.Class_Novel.novel['chapters'][title]['img_item'] = img_item
-                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
+                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
                 template = template.replace("<&?NovelData!&>", noveldata)
                 with open(html_path, 'w', encoding='utf-8') as f:
                     f.write(template)
+                self.Class_Novel.novel['chapters'][title]['img_item'] = origin_img_items[title]
 
             else:
+                origin_img_items = {}
                 for title in self.Class_Novel.novel['chapters'].keys():
-                    img_item = self.Class_Novel.novel['chapters'][title]['img_item']
+                    img_item = self.Class_Novel.novel['chapters'][title]['img_item'].copy()
+                    origin_img_items[title] = img_item.copy()
                     for desc, data in img_item.items():
                         data = str(img_dir / title / desc) + '.png'
                         img_item[desc] = os.path.relpath(data, self.save_config['html']['dir'])
-                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
+                        self.Class_Novel.novel['chapters'][title]['img_item'] = img_item
+                noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
                 template = template.replace("<&?NovelData!&>", noveldata)
                 with open(html_path, 'w', encoding='utf-8') as f:
                     f.write(template)
-
-        else:
-            noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=2)
-            template = template.replace("<&?NovelData!&>", noveldata)
-            with open(html_path, 'w', encoding='utf-8') as f:
-                f.write(template)
-            pass
+                for title in self.Class_Novel.novel['chapters'].keys():
+                    self.Class_Novel.novel['chapters'][title]['img_item'] = origin_img_items[title]
+        
+        else:"""
+        noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+        template = template.replace("<&?NovelData!&>", noveldata)
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(template)
         return
