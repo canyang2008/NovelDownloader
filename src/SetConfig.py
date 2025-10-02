@@ -6,13 +6,14 @@ class SetConfig:
     """配置类"""
 
     def __init__(self):
+        self.Threads_num = 1
         self.Api_option = None
         self.Api_key = None
         self.Play_completion_sound = None
         self.Port = None
         self.USER = "Default"
         self.GROUP = "Default"
-        self.novel_update = False
+        self.Novel_update = False
         self.Max_retry = 3
         self.Timeout = 10
         self.Interval = 2
@@ -53,7 +54,8 @@ class SetConfig:
         self.GROUP = self.User_config.get("Group", "Default")
         self.Group = self.GROUP
         self.Get_mode = self.User_config.get("Get_mode", 0)
-        self.Save_method = self.User_config.get("Save_method")
+        self.Save_method = self.User_config.get("Save_method", {})
+        self.Threads_num = self.User_config.get("Threads_num", 1)
         if self.Get_mode == 0:
             self.Port = self.User_config["Browser"].get("Port", 9444)
             self.Max_retry = self.User_config["Browser"].get("Max_retry", 3)
@@ -74,7 +76,7 @@ class SetConfig:
             "Base_dir": f"data/Local/{user_name}/json"}
         self.User_config["USER"] = user_name
         new_user_config = {
-            "Version": "1.1.0",
+            "Version": "1.1.1",
             "User_name": user_name,
             "Group": "Default",
             "README": "",
@@ -108,25 +110,43 @@ class SetConfig:
                             3
                         ],
                         "Key": ""
+                    },
+                    "requests": {
+                        "Max_retry": 3,
+                        "Timeout": 10,
+                        "Interval": 2,
+                        "Delay": [
+                            1,
+                            3
+                        ],
+                        "Cookie": ""
                     }
-                }
-            },
-            "Save_method": {
-                "json": {
-                    "name": "name_default",
-                    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-                    "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
                 },
-                "txt": {
-                    "name": "name_default",
-                    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-                    "gap": 0,
-                    "max_filesize": -1
+                "Qidian": {
+                    "Option": "requests",
+                    "requests": {
+                        "Max_retry": 3,
+                        "Timeout": 10,
+                        "Interval": 2,
+                        "Delay": [
+                            1,
+                            3
+                        ],
+                        "Cookie": ""
+                    }
                 },
-                "html": {
-                    "name": "name_default",
-                    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-                    "one_file": False
+                "Biquge": {
+                    "Option": "requests",
+                    "requests": {
+                        "Max_retry": 3,
+                        "Timeout": 10,
+                        "Interval": 2,
+                        "Delay": [
+                            1,
+                            3
+                        ],
+                        "Cookie": ""
+                    }
                 }
             },
             "Unprocess": []
@@ -136,12 +156,12 @@ class SetConfig:
         self.save_config(2)
         self.load()
 
-    def set_config(self, url, read):
-        if read:
+    def set_config(self, url):
+        if self.Novel_update:
             for group in self.mems.keys():
                 if group == "Version": continue
                 if url in self.mems[group].keys():  # 如果url存在于成员内
-                    self.novel_update = True
+                    self.Novel_update = True
                     self.Group = group
                     file_name = self.mems[group][url] + ".json"
                     with open(os.path.join("data", "Local", self.USER, "json", file_name), "r", encoding="utf-8") as f:
@@ -152,7 +172,7 @@ class SetConfig:
                     self.Interval = novel_config.get("Interval", 2)
                     self.Delay = novel_config.get("Delay", [1, 3])
                     self.Save_method = copy.deepcopy(novel_config["Save_method"])
-                    return None
+                    return True
 
         self.Group = self.GROUP
         if self.Get_mode == 1:
@@ -177,7 +197,7 @@ class SetConfig:
             self.Timeout = self.User_config['Browser'].get("Timeout", 10)
             self.Interval = self.User_config['Browser'].get("Interval", 2)
             self.Delay = self.User_config['Browser'].get("Delay", [1, 3])
-        self.novel_update = False
+        self.Novel_update = False
         return None
 
     def save_config(self, option=0):

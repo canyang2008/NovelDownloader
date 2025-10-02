@@ -15,7 +15,7 @@ init(autoreset=True)
 
 
 class Fanqie:
-    def __init__(self, logger_, Class_Novel, Class_Config, Class_Driver):
+    def __init__(self, logger_, class_config, class_driver):
 
         self.Class_Driver = None
         self.logger = logger_
@@ -25,13 +25,11 @@ class Fanqie:
         self.all_url_list = []
         self.all_title_list = []
         self.novel = {'version': '1.1.0', 'info': {}, 'chapters': {}, "config": {}}
-        self.img_items = {}
         self.Class_Novel = None
         self.Class_Config = None
         self.user_state_code = -1  # 用户状态码 -1:未登录状态； 0：无vip； 1：标准
-        self.Class_Novel = Class_Novel
-        self.Class_Config = Class_Config
-        self.Class_Driver = Class_Driver
+        self.Class_Config = class_config
+        self.Class_Driver = class_driver
 
     def user_state_for_html(self, html):
         soup = BeautifulSoup(html, 'lxml')
@@ -60,17 +58,20 @@ class Fanqie:
             html
     ):
         self.novel = {'version': '1.1.0', 'info': {}, 'chapters': {}, "config": {}}
+        # 定位json起始和终点位置
         start = html.find("window.__INITIAL_STATE__=") + len("window.__INITIAL_STATE__=")
         start_html = html[start:]
         end = start_html.find(")()")
         script = start_html[:end].strip()[:-1].strip()[:-1]
+
         json_data = json.loads(script)
-        name = json_data.get('page').get("bookName")
-        author = json_data.get('page').get("author")
-        author_desc = json_data.get('page').get("description")
-        label_item_str = json_data.get('page').get("categoryV2")
+        page_data = json_data.get('page', {})
+        name = page_data.get("bookName")
+        author = page_data.get("author")
+        author_desc = page_data.get("description")
+        label_item_str = page_data.get("categoryV2")
         label_item_list = json.loads(label_item_str)
-        status = json_data.get('page').get("creationStatus")
+        status = page_data.get("creationStatus")
         label_list = []
         if status == 1:
             label_list.append("连载中")
@@ -79,13 +80,13 @@ class Fanqie:
         for label_item in label_item_list:
             label_list.append(label_item.get("Name"))
         label = ' '.join(label_list)
-        count_word = str(json_data.get('page').get("wordNumber")) + "字"
-        last_update_of_title = json_data.get('page').get("lastChapterTitle")
+        count_word = str(page_data.get("wordNumber")) + "字"
+        last_update_of_title = page_data.get("lastChapterTitle")
         last_update_of_time = time.strftime("%Y-%m-%d %H:%M:%S",
-                                            time.localtime(int(json_data.get('page').get("lastPublishTime"))))
+                                            time.localtime(int(page_data.get("lastPublishTime"))))
         last_update = f"最近更新：{last_update_of_title} {last_update_of_time}"
-        abstract = json_data.get('page').get("abstract")
-        book_cover_url = json_data.get('page').get("thumbUri")
+        abstract = page_data.get("abstract")
+        book_cover_url = page_data.get("thumbUri")
         book_cover_data = base64.b64encode(requests.get(book_cover_url).content).decode("utf-8")
         chapter_list_with_volume = json_data.get("page").get("chapterListWithVolume")
         self.all_title_list = []
@@ -103,7 +104,6 @@ class Fanqie:
         self.novel['info']['abstract'] = abstract
         self.novel['info']['book_cover_data'] = "data:image/png;base64," + book_cover_data
         self.novel['info']['url'] = url
-        self.img_items['封面图片'] = {name: self.novel['info']['book_cover_data']}
         # 更新下载列表
         self.down_url_list, self.down_title_list = self.all_url_list, self.all_title_list
         return True
@@ -189,10 +189,13 @@ class Fanqie:
                     de_text += t1
             return de_text
 
+        # 定位json起始和终点位置
         start = html.find("window.__INITIAL_STATE__=") + len("window.__INITIAL_STATE__=")
         start_html = html[start:]
         end = start_html.find(")()")
         script = start_html[:end].strip()[:-1].strip()[:-1]
+
+        # json合法化
         script = script.replace('"libra":undefined', '"libra":"undefined"')
         json_data = json.loads(script)
         update_time = "更新时间：" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(
@@ -203,12 +206,13 @@ class Fanqie:
             integrity = False
         else:
             integrity = True
+        # 减小范围以准确定位text和img
         html_content = str(parent_soup.find('div', class_='muye-reader-content noselect'))
         soup = BeautifulSoup(translate(html_content), 'lxml')
-        con = str(soup)
         img_counter = 0
         img_dict = {}
 
+        """处理图片"""
         # 处理所有图片标签
         img_tags = soup.find_all('img')
         for img in img_tags:
@@ -277,12 +281,10 @@ class Fanqie:
                     text = element.get_text(strip=True)
                     if text:
                         text_content.append(text)
-        if img_dict:
-            self.img_items[title] = img_dict
-        text_content = [text_content[i] for i in range(0, len(text_content), 2)]
-        novel_content = '\t' + "\n\t".join(text_content)
-        if '143' in title:
-            pass
+
+        text_content = [text_content[i] for i in range(0, len(text_content), 2)]  # 去除重复文本
+        novel_content = "\n".join(text_content)
+        # 赋值
         self.novel['chapters'][title] = {
             'url': url,
             'update': update_time,
@@ -298,9 +300,9 @@ class Fanqie:
         headers = {
             'Referer': "https://oiapi.net/doc/?id=115",
             'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0",
-            'Cookies': "PHPSESSID=88caaf053aca691c041f0e930a9ff699",
             "Origin": "https://oiapi.net",
         }
+        # 以POST获取内容
         post_data = {
             "chapter": str(index),
             "id": re.search(r'page/(\d+)', page_url).group(1),
@@ -310,15 +312,16 @@ class Fanqie:
         response = requests.post("https://oiapi.net/api/FqRead", data=post_data, headers=headers).json()
         message = response['message']
         data = response.get('data')
+        # 没有键data说明出现问题
         if not data:
             print(f"oiapi出现错误\nmessage:{message}")
             return False
         else:
             chapter_data = data[0]
             title = chapter_data['chapter_title']
-            update_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(chapter_data['time']))
-            count_word = chapter_data['word_number']
-            content = chapter_data['content']
+            update_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(chapter_data['time']))  # 更新时间
+            count_word = chapter_data['word_number']  # 章节字数
+            content = chapter_data['content']  # 小说内容
             self.Class_Novel['chapters'][title] = {
                 "url": chapter_url,
                 "update": f"更新时间：{update_time}",
@@ -326,26 +329,27 @@ class Fanqie:
                 "content": content.replace('已经是最新一章',
                                            '') if '已经是最新一章' in content else content,
                 'integrity': True,
-                'img_item': {}
+                'img_item': {}  # api无图片
             }
             return True
 
     def _get_soup_for_browser(self, url):
         if "page" in url:
-            class_name = ".page-directory-content"
+            class_name = ".page-directory-content"  # 番茄目录页
         elif "reader" in url:
-            class_name = ".muye-reader-content noselect"
+            class_name = ".muye-reader-content noselect"  # 番茄章节内容页
         else:
             class_name = None
         try:
-            self.Class_Driver.tab.get(url)
-            time.sleep(random.uniform(self.Class_Config.Delay[0], self.Class_Config.Delay[1]))
+            self.Class_Driver.tab.get(url)  # 访问
+            time.sleep(random.uniform(self.Class_Config.Delay[0], self.Class_Config.Delay[1]))  # 延迟
             if not self.Class_Driver.tab.states.is_alive: raise BaseError
             self.Class_Driver.tab.wait.eles_loaded(
-                class_name, raise_err=True)  # 分别为番茄目录页、起点目录页、番茄章节内容页、起点章节内容页（class）
+                class_name, raise_err=True)  # 等待加载
             html = self.Class_Driver.tab.raw_data
             return html
         except WaitTimeoutError:
+            # 验证码框架
             if self.Class_Driver.tab.get_frames():
                 toast = ToastNotifier()
                 toast.show_toast(
@@ -366,7 +370,7 @@ class Fanqie:
         return True
 
 
-    def get_page(self, url):  # 获取小说info和所有链接与标题
+    def get_page(self, url):  # 获取小说信息和所有链接与标题
 
         if self.Class_Config.Get_mode == 0:  # 浏览器模式
             html = self._get_soup_for_browser(url)
@@ -380,8 +384,8 @@ class Fanqie:
         return True
 
     def download(self, title, chapter_url, index=0, page_url=None):
-        if self.Class_Config.Get_mode == 0:
-            html = self._get_soup_for_browser(chapter_url)
+        if self.Class_Config.Get_mode == 0:     # 浏览器模式
+            html = self._get_soup_for_browser(chapter_url)  # 获取html文本
             self._get_novel_for_html(title, chapter_url, html)
 
         else:

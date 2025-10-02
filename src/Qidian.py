@@ -11,7 +11,7 @@ from win10toast import ToastNotifier
 
 
 class Qidian:
-    def __init__(self, logger_, Class_Novel, Class_Config, Class_Driver):
+    def __init__(self, logger_, class_config, class_driver):
 
         self.logger = logger_
         self.img_items = {}
@@ -21,11 +21,10 @@ class Qidian:
         self.all_url_list = []
         self.all_title_list = []
         self.desc_figural = {}
-        self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
+        self.novel = {'version': '1.1.0', 'info': {}, 'chapters': {}}
         self.user_state_code = -1  # 用户状态码 -1:未登录状态； 1：标准
-        self.Class_Novel = Class_Novel
-        self.Class_Config = Class_Config
-        self.Class_Driver = Class_Driver
+        self.Class_Config = class_config
+        self.Class_Driver = class_driver
 
     def user_state_for_html(self, html):
         soup = BeautifulSoup(html, 'lxml')
@@ -57,6 +56,7 @@ class Qidian:
             html = self.Class_Driver.tab.raw_data
             return html
         except WaitTimeoutError:
+            # 应该没有验证码啊框架吧..算了，复制粘贴进去先
             if self.Class_Driver.tab.get_frames():
                 toast = ToastNotifier()
                 toast.show_toast(
@@ -81,7 +81,7 @@ class Qidian:
             url: str,
     ):
         soup = BeautifulSoup(self._get_soup_for_browser(url), 'lxml')
-        self.novel = {'version': '1.0.0', 'info': {}, 'chapters': {}}
+        self.novel = {'version': '1.1.0', 'info': {}, 'chapters': {}}
         if soup.find('div', class_='wrap error-wrap'):
             print('Cannot find this book')
             return False

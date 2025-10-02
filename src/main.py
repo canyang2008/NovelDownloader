@@ -1,26 +1,22 @@
 # -*- coding: utf-8 -*-
-import copy
 import faulthandler
 import json
 import logging
 import os
 import re
-import shlex
 import sys
 import time
+import tkinter as tk
 import traceback
 from datetime import datetime
 from pathlib import Path
 
-import winsound
-from bs4 import BeautifulSoup
 from colorama import init, Fore
 from tqdm import tqdm
 
 import Check
-from Check import Check as CCheck
+from Biquge import Biquge
 from Fanqie import Fanqie
-from GetHtml import GetHtml
 from Qidian import Qidian
 from RunDriver import RunDriver
 from Save import Save
@@ -28,7 +24,7 @@ from SetConfig import SetConfig
 
 faulthandler.enable()
 init(autoreset=True)
-
+"""当前版本暂未完全测试，但是下载和更新功能(Chrome模式)可以使用"""
 
 def global_exception_handler(exctype, value, tb):
     """全局异常处理器"""
@@ -120,11 +116,11 @@ def range_split(deal_range, total_list):
     return sorted_range
 
 
-class NovelDownloader:
+class NovelDownloader(tk.Tk):
 
     def update(self):
-        file_name = self.Class_Config.mems[self.Class_Config.Group][self.download_url] + '.json'
-        json_path = Path(self.Class_Config.Base_dir) / file_name
+        file_name = self.Class_Config.mems[self.Class_Config.Group][self.download_url] + '.json'    # 需要读取的文件全名
+        json_path = Path(self.Class_Config.Base_dir) / file_name        # 路径
         if not os.path.exists(json_path):
             print('json文件被移动或不存在')
         else:
@@ -143,52 +139,31 @@ class NovelDownloader:
             return True
         return False
 
-    def load_downargs(self, downargs: str):
+    def load_down_args(self, url):
 
-        # 使用shlex智能分割字符串
-        basic_tokens = shlex.split(downargs)
-        basic_tokens.insert(0, 'url')
-        tokens = basic_tokens[:2]  # 避免url误入其中
-        for token in basic_tokens[2:]:
-            token = re.sub(r"^-{1,2}", '', token)
-            args = token.lower().split('=')
-            tokens.extend([args[0], args[1]])
-        it = iter(tokens)
-        # 转变为键值对
-        self.downargs = dict(zip(it, it))
-        self.downargs = {k.lower(): v for k, v in self.downargs.items()}  # 键统一用小写
-        url = self.downargs.get('url')
+        url = url.split('?')[0]  # 不带参数的url
         if 'https://changdunovel.com/wap/' in url:  # 处理番茄小说的分享链接
             book_id = re.search(r"book_id=(\d+)", url).group(1)
             url = 'https://fanqienovel.com/page/' + book_id
-        self.downargs['url'] = url.split('?')[0]  # 不带参数的url
-        url = url.split('?')[0]  # 不带参数的url
         if 'fanqienovel.com' in url:
             self.Class_Novel = self.Class_Fanqie
         elif 'qidian.com' in url:
             self.Class_Novel = self.Class_Qidian
+        elif 'biqugequ.org' in url:
+            self.Class_Novel = self.Class_Biquge
         else:
             print('不支持该网站，请检查链接')
-            return False
+            raise ValueError(f"NovelDownloader:The website corresponding to this url does not support\nUrl: {url}")
 
-        self.download_url = url
-        self.Class_Config.Group = self.downargs.get('group', self.Class_Config.Group)
-        self.range = self.downargs.get('range', None)
-        self.novel_update = self.downargs.get('update', False)
-        self.Class_Config.Headless = self.downargs.get('headless', False)
-        if self.novel_update and not self.novel_update.lower().startswith('f'):  # 当update有值且不以f开头时默认为True
-            self.novel_update = True
-        self.Class_Config.set_config(url, self.novel_update)  # 设置url的配置
-        return self
-
-    def download_novel(self, download_url):
-        if self.Class_Config.Get_mode == 0:
-            self.Class_Driver.config(user_data_dir=self.Class_Config.User_data_dir, port=self.Class_Config.Port,
+        self.download_url = url         # 全局的url
+        self.Class_Config.set_config(url)  # 通过url设置配置
+        if self.Class_Config.Get_mode == 0:     # 选择以Chrome获取
+            self.Class_Driver.config(user_data_dir=self.Class_Config.User_data_dir, port=self.Class_Config.Port,    # 配置Chrome参数
                                      headless=self.Class_Config.Headless)
-            self.Class_Driver.run()
-        if not self.Class_Novel.get_page(download_url):
+            self.Class_Driver.run()     # Chrome启动！
+        if not self.Class_Novel.get_page(self.download_url):    # 获取小说目录页的一些信息
             return False
-        if self.novel_update:
+        if self.Class_Config.Novel_update:
             self.update()  # 获取需更新小说标题及链接
             self.Class_Save.config(self.Class_Novel, self.Class_Config)  # 初始化保存配置
             self.Class_Save.save(full_save=True)  # 覆写模式保存
@@ -197,31 +172,41 @@ class NovelDownloader:
             self.Class_Novel.down_title_list = [self.Class_Novel.down_title_list[i - 1] for i in self.range]
             self.Class_Novel.down_url_list = [self.Class_Novel.down_url_list[i - 1] for i in self.range]
         self.Class_Save.config(self.Class_Novel, self.Class_Config)  # 初始化保存配置
+        return True
+
+
+    def _download(self):
+        index = self.Class_Novel.all_title_list.index(self.Class_Novel.down_title_list[0]) - 1
+        for title, url in zip(self.Class_Novel.down_title_list, self.Class_Novel.down_url_list):
+            index += 1
+            if not self.Class_Novel.download(title, url, index, self.download_url): return False
+            if self.Class_Config.Save_method: pass
+            self.Class_Save.save(title=title)  # 保存
+            self.down_progress.update(1)
+        return True
+
+    def download_novel(self):
         with tqdm(total=len(self.Class_Novel.down_title_list),
-                  desc=self.Class_Novel.novel['info']['name']) as down_progress:
-            index = 0
+                  desc=self.Class_Novel.novel['info']['name']) as self.down_progress:
             try:
-                for title, url in zip(self.Class_Novel.down_title_list, self.Class_Novel.down_url_list):
-                    index += 1
-                    if not self.Class_Novel.download(title, url, index, self.download_url): return False
-                    if self.Class_Config.Save_method: pass
-                    self.Class_Save.save(title=title)  # 保存
-                    down_progress.update(1)
-                if self.Class_Config.User_config["Play_completion_sound"]:
-                    winsound.MessageBeep(winsound.MB_OK)  # 播放完成音
-                down_progress.update(1)
-                return True
+                self._download()
+                # 多线程启动self._download() 暂未实现
+                for thread_id in range(self.Class_Config.Threads_num):
+                    pass
             except KeyboardInterrupt:
                 print("已退出..")
+
 
     def func(self):
 
         while True:
+            # 重新加载默认Config
             self.Class_Config.load()
+            Check.main()
             try:
-                saved_mems = copy.deepcopy(self.Class_Config.mems)
+                saved_mems = self.Class_Config.mems
                 urls_para = []
-                urls = []  # 所有已保存的url
+                urls = []  # 所有成员
                 for group in saved_mems.keys():
                     if group == "Version": continue
                     for url in saved_mems[group].keys():
@@ -247,93 +232,92 @@ class NovelDownloader:
 2.起点：
 3.(新)笔趣阁：
 """)
+                        # 直接退出
                         if not option and re.match(r"^\d$", option):
                             print('输入错误')
                             continue
+                        # 配置Chrome
                         self.Class_Driver.config(user_data_dir=self.Class_Config.User_data_dir,
                                                  port=self.Class_Config.Port, headless=False)
-                        tab = self.Class_Driver.run()
+                        tab = self.Class_Driver.run()   # Chrome启动
                         match option:
                             case '1':
                                 tab.get("https://fanqienovel.com/main/writer/login")
                                 input("登录后按下任意键继续..")
-                                soup = BeautifulSoup(tab.raw_data)
-                                self.Class_Fanqie.user_state_for_html(soup)
+                                html = tab.raw_data     # html数据
+                                self.Class_Fanqie.user_state_for_html(html)
                                 match self.Class_Fanqie.user_state_code:
-                                    case -1:
-                                        print(f"{Fore.YELLOW}番茄账号未登录，下载的小说将不完整")
+                                    case -1:# 未登录
                                         self.Class_Config.User_config['Browser']['State']['Fanqie'] = -1
-                                    case 0:
-                                        print(f"{Fore.YELLOW}番茄账号已登录但无vip，下载的小说将不完整")
+                                    case 0:# 已登录但无vip
                                         self.Class_Config.User_config['Browser']['State']['Fanqie'] = 0
-                                    case 1:
-                                        print(f"{Fore.GREEN}番茄账号已登录且有vip")
+                                    case 1:# 有vip
                                         self.Class_Config.User_config['Browser']['State']['Fanqie'] = 1
-                                self.Class_Config.save_config(1)
+                                self.Class_Config.save_config(1)    # 保存状态
 
                             case '2':
                                 tab.get("https://fanqienovel.com/main/writer/login")
                                 input("登录后按下任意键继续..")
 
                             case '3':
-                                print("暂未实现")
+                                tab.get("https://www.biqugequ.org/")
+                                input("登录后按下任意键继续..")
 
 
                     case "1":
+                        # 按Group，name输出
                         for sequence in range(len(urls_para)):  print(
                             f'{sequence + 1}.群组：{urls_para[sequence][0]} 小说名：{urls_para[sequence][1]}')
                         choice = input('请输入数字或范围（如1-3,5,7-9；last:3；all）')
                         if not choice:
                             print('输入错误')
                             continue
-                        update_range = range_split(choice, len(urls_para))
+                        update_range = range_split(choice, len(urls_para))      # 分割为纯数字型列表
                         for index in update_range:
                             self.download_url = urls_para[index - 1][2]
-                            self.download_url += ' --update=True'
-                            self.download_url = self.load_downargs(self.download_url).download_url
-                            self.download_novel(self.download_url)
+                            self.Class_Config.Novel_update = True       # 标记为更新
+                            self.load_down_args(self.download_url)      # 配置
+                            self.download_novel()       # 下载
 
                     case "2":
-                        para = input('请输入小说链接(参数):')
-                        if not para:
+                        input_url = input('请输入小说链接:')
+                        if not input_url:
                             print('输入错误')
                             continue
-                        self.download_url = self.load_downargs(para).download_url
-                        if self.download_url in urls:
+                        if input_url in urls:
                             print("当前链接存在，自动更新中…")
-                            self.download_url += ' --update=True'
-                            self.download_url = self.load_downargs(para).download_url
-                        self.download_novel(self.download_url)
+                            self.Class_Config.Novel_update = True       # 标记为更新
+                        self.load_down_args(input_url)  # 配置
+                        self.download_novel()       # 下载
 
                     case "3":
                         print(
                             """将打开urls.txt,请在文件中输入小说链接，一行一个。\
                             输入完成后请保存并关闭文件，然后按 Enter 键继续...""")
                         time.sleep(0.5)
-                        os.startfile('data\\Local\\urls.txt')
+                        os.startfile('data\\Local\\urls.txt')       # 弹出url.txt（Windows）
                         input()
                         with open('data\\Local\\urls.txt', 'r', encoding='utf-8') as f_:
                             for line in f_:
                                 if not line:
                                     continue
-                                self.download_url = self.load_downargs(line).download_url
-                                if self.download_url in urls:
+                                if line in urls:
                                     print("当前链接存在，自动更新中…")
-                                    self.novel_update = True
-                                self.download_novel(self.download_url)
+                                    self.Class_Novel.Novel_update = True    # 标记为更新
+                                self.load_down_args(line)
+                                self.download_novel()
 
                     case "4":
-                        para = input('请输入小说链接(参数):')
+                        para = input('请输入小说链接:')
                         if not para:
                             continue
-                        if 'range' in para:
-                            self.download_url = self.load_downargs(para).download_url
-                        else:
-                            novel_range = input('请输入章节范围(如1-3,5,7-9):')
-                            para = para.strip() + ' --range=' + novel_range.strip()
-                            self.download_url = self.load_downargs(para).download_url
-                        self.download_novel(self.download_url)
-
+                        novel_range = input('请输入章节范围(如1-3,5,7-9):')
+                        self.range = novel_range
+                        self.download_url = self.load_down_args(self.download_url)
+                        self.download_novel()
+                        """
+建议直接通过JSON文件修改配置，这样更快更灵活
+"""
                     case "5":
                         choice = input(
                             """
@@ -388,7 +372,7 @@ class NovelDownloader:
                                         if re.match(r"\d+", option.strip()):
                                             option = int(option)
                                             del_user = self.Class_Config.User_manage["USERS"].pop(option - 1)
-                                            if del_user == self.Class_Config.USER:
+                                            if del_user == self.Class_Config.USER:      # 当删除的是当前账户
                                                 self.Class_Config.User_manage["USER"] = users[0]
                                                 self.Class_Config.save_config(2)
                                                 self.Class_Config.load()
@@ -397,6 +381,7 @@ class NovelDownloader:
 
                             case '2':
                                 groups = list(self.Class_Config.mems.keys())
+                                # 输出所有Group
                                 for group_idx in range(1, len(groups) + 1):
                                     print(f"{group_idx}.{groups[group_idx - 1]}")
                                 print(f"当前分组:{self.Class_Config.GROUP}")
@@ -410,11 +395,12 @@ class NovelDownloader:
                                             if not option or 'r' in option.lower():
                                                 print("已退出..")
                                                 break
+                                            # 符合选择规范
                                             if re.match(r"\d+", option.strip()):
                                                 option = int(option)
                                                 self.Class_Config.User_config['Group'] = groups[option - 1]
-                                                self.Class_Config.save_config(1)
-                                                self.Class_Config.load()
+                                                self.Class_Config.save_config(1)    # 保存为UserConfig.json
+                                                self.Class_Config.load()            # 重新加载
                                                 print(f"分组切换成功({self.Class_Config.GROUP})")
                                                 break
                                             else:
@@ -432,10 +418,10 @@ class NovelDownloader:
                                                 continue
                                             else:
                                                 self.Class_Config.User_config["Group"] = group_input
-                                                self.Class_Config.mems[group_input] = {}
-                                                self.Class_Config.save_config(0)
-                                                self.Class_Config.save_config(1)
-                                                self.Class_Config.load()
+                                                self.Class_Config.mems[group_input] = {}    # 新建一个group
+                                                self.Class_Config.save_config(0)    # 保存mems.json
+                                                self.Class_Config.save_config(1)    # 保存UserConfig.json
+                                                self.Class_Config.load()            # 重新加载
                                                 print(f"分组已创建成功({self.Class_Config.GROUP})")
                                                 break
 
@@ -448,14 +434,21 @@ class NovelDownloader:
                                             option = int(option)
                                             del_group = groups[option - 1]
                                             self.Class_Config.mems.pop(del_group)
+                                            # 如果删除的是当前的GROUP
                                             if del_group == self.Class_Config.GROUP:
                                                 self.Class_Config.User_config['Group'] = groups[0]
-                                            self.Class_Config.save_config(0)
-                                            self.Class_Config.save_config(1)
-                                            self.Class_Config.load()
+                                            self.Class_Config.save_config(0)    # 保存mems.json
+                                            self.Class_Config.save_config(1)    # 保存UserConfig.json
+                                            self.Class_Config.load()            # 重新加载
                                             print(f"分组 {del_group} 已删除成功({self.Class_Config.GROUP})")
+                                        else:
+                                            print("请正确输入")
+                                            continue
 
-
+            except ValueError as e:
+                if str(e).startswith("NovelDownloader:"):
+                    continue
+                else:raise
             except KeyboardInterrupt:
                 code = input("是否退出？y/n")
                 if 'y' in code.lower() or 'Y' in code.lower():
@@ -466,26 +459,26 @@ class NovelDownloader:
 
     def __init__(self, logger_):
 
+        super().__init__()
+        Check.main()
         self.logger = logger_
-        self.novel_update = None
         self.select = None
         self.download_url = None
         self.range = None
         self.downargs = {}
         self.Class_Config = SetConfig()
-        self.Class_Check = CCheck()
         self.Class_Driver = RunDriver(logger_)
-        self.Class_Novel = GetHtml(self.Class_Driver, self.Class_Config.User_config['Play_completion_sound'], logger_)
-        self.Class_Save = Save(logger_)
-        self.Class_Qidian = Qidian(logger_, self.Class_Novel, self.Class_Config, self.Class_Driver)
-        self.Class_Fanqie = Fanqie(logger_, self.Class_Novel, self.Class_Config, self.Class_Driver)
         self.Class_Novel = None
-
+        self.Class_Save = Save(logger_)
+        self.Class_Qidian = Qidian(logger_, self.Class_Config, self.Class_Driver)
+        self.Class_Fanqie = Fanqie(logger_, self.Class_Config, self.Class_Driver)
+        self.Class_Biquge = Biquge(logger_, self.Class_Config, self.Class_Driver)
+        self.Class_Novel = None
         return
 
 
 # 创建日志记录器
-# 作者：太多需要记录的日志了，有一点死了……下周末再弄吧
+# 作者：太多需要记录的日志了，有一点死了……
 logger = logging.getLogger("auto_logger")
 logger.setLevel(logging.DEBUG)
 
@@ -521,13 +514,6 @@ print(f"""
 如果在使用过程中想反馈，欢迎参与讨论:
     QQ：765857967    issues：https://github.com/canyang2008/NovelDownloader/issues/1\n
 检查配置中……{Fore.YELLOW}注：格式化操作是删除data/Local文件夹再次运行即可\n\n""")
-if os.path.exists("data/Record/UrlConfig.json"):
-    import transform
-
-    transform.init()
-if not os.path.exists("data/Local"):
-    print(f"{Fore.YELLOW}重置中")
-    Check.init()
 sys.excepthook = global_exception_handler  # 设置全局异常处理器
 downloader = NovelDownloader(logger)
 downloader.func()  # 功能

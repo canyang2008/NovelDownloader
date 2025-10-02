@@ -1,6 +1,8 @@
 import json
 import os
 
+from colorama import Fore
+
 
 class Check:
     def __init__(self): pass
@@ -10,77 +12,77 @@ def init():
     os.makedirs("data/Local", exist_ok=True)
 
     init_manage = {
-    "VERSION": "1.1.0",
-    "README": "",
-    "USER": "Default",
-    "USERS": {
-      "Default": {
-        "User_config_path": "data/Local/Default/UserConfig.json",
-        "User_data_dir": "data/Local/Default/User Data",
-        "Base_dir": "data/Local/Default/json"
-      }
-    }
+        "VERSION": "1.1.0",
+        "README": "",
+        "USER": "Default",
+        "USERS": {
+            "Default": {
+                "User_config_path": "data/Local/Default/UserConfig.json",
+                "User_data_dir": "data/Local/Default/User Data",
+                "Base_dir": "data/Local/Default/json"
+            }
+        }
     }
     with open(f"data/Local/manage.json", "w", encoding="utf-8") as f:
         json.dump(init_manage, f, ensure_ascii=False, indent=4)
 
     init_userconfig = {
-    "Version": "1.1.0",
-    "User_name": "Default",
-    "Group": "Default",
-    "README": "",
+        "Version": "1.1.0",
+        "User_name": "Default",
+        "Group": "Default",
+        "README": "",
         "Play_completion_sound": False,
         "Get_mode": 0,
-    "Browser": {
-      "State": {
-        "Fanqie": -1,
-        "Qidian": 0,
-        "Bqg128": 0
-      },
-      "Timeout": 10,
-      "Max_retry": 3,
-      "Interval": 2,
-      "Delay": [
-        1,
-        1.5
-      ],
-      "Port": 9445,
-        "Headless": False
-    },
-    "Api": {
-      "Fanqie": {
-        "Option": "oiapi",
-        "oiapi": {
-          "Max_retry": 3,
-          "Timeout": 10,
-          "Interval": 2,
-          "Delay": [
-            1,
-            3
-          ],
-          "Key": ""
-        }
-      }
-    },
-    "Save_method": {
-      "json": {
-        "name": "name_default",
-        "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-        "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
-      },
-      "txt": {
-        "name": "name_default",
-        "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-        "gap": 0,
-        "max_filesize": -1
-      },
-      "html": {
-        "name": "name_default",
-        "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-          "one_file": True
-      }
-    },
-    "Unprocess": []
+        "Browser": {
+            "State": {
+                "Fanqie": -1,
+                "Qidian": 0,
+                "Bqg128": 0
+            },
+            "Timeout": 10,
+            "Max_retry": 3,
+            "Interval": 2,
+            "Delay": [
+                1,
+                1.5
+            ],
+            "Port": 9445,
+            "Headless": False
+        },
+        "Api": {
+            "Fanqie": {
+                "Option": "oiapi",
+                "oiapi": {
+                    "Max_retry": 3,
+                    "Timeout": 10,
+                    "Interval": 2,
+                    "Delay": [
+                        1,
+                        3
+                    ],
+                    "Key": ""
+                }
+            }
+        },
+        "Save_method": {
+            "json": {
+                "name": "name_default",
+                "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+                "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
+            },
+            "txt": {
+                "name": "name_default",
+                "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+                "gap": 0,
+                "max_filesize": -1
+            },
+            "html": {
+                "name": "name_default",
+                "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+                "one_file": True
+            }
+        },
+        "Unprocess": []
     }
 
     os.makedirs(f"data/Local/Default", exist_ok=True)
@@ -89,9 +91,9 @@ def init():
     os.makedirs(f"data/Local/Default/User Data", exist_ok=True)
     os.makedirs(f"data/Local/Default/json", exist_ok=True)
     init_mems = {
-    "Version": "1.1.0",
-    "Default": {
-    }
+        "Version": "1.1.0",
+        "Default": {
+        }
     }
     with open(f"data/Local/Default/json/mems.json", "w", encoding="utf-8") as f:
         json.dump(init_mems, f, ensure_ascii=False, indent=4)
@@ -1801,6 +1803,91 @@ def init():
 </body>
 
 </html>"""
-    with open("data/Local/template", 'w', encoding='utf-8') as f:
+    with open("data/Local/template.html", 'w', encoding='utf-8') as f:
         f.write(template)
     open("data/Local/urls.txt", 'w', encoding='utf-8').close()
+
+
+# 插入字典到JSON指定位置
+def insert_into_dict(original_dict, new_dict, after_key):
+    result = {}
+    for key, value in original_dict.items():
+        result[key] = value
+        if key == after_key:
+            result.update(new_dict)
+    return result
+
+
+def update_for_user_config(user_config_version, user_config, user_config_path):
+    match user_config_version:
+        case "1.1.0":
+            user_config['Api']['Qidian'] = {}
+            user_config['Api']['Biquge'] = {}
+            new_dict = {
+                "Requests": {
+                    "Fanqie": {
+                        "Max_retry": 3,
+                        "Timeout": 10,
+                        "Interval": 2,
+                        "Delay": [
+                            1,
+                            3
+                        ],
+                        "Cookie": "",
+                    },
+                    "Qidian": {
+                        "Max_retry": 3,
+                        "Timeout": 10,
+                        "Interval": 2,
+                        "Delay": [
+                            1,
+                            3
+                        ],
+                        "Cookie": "",
+                    },
+                    "Biquge": {
+                        "Max_retry": 3,
+                        "Timeout": 10,
+                        "Interval": 2,
+                        "Delay": [
+                            1,
+                            3
+                        ],
+                        "Cookie": "",
+                    }
+                }
+            }
+            user_config['Version'] = '1.1.1'
+            user_config = insert_into_dict(user_config, new_dict, 'Api')
+            del new_dict
+            new_dict = {'Threads_num': 1}
+            user_config = insert_into_dict(user_config, new_dict, 'Get_mode')
+            with open(user_config_path, 'w', encoding='utf-8') as f:
+                json.dump(user_config, f, ensure_ascii=False, indent=4)
+            pass
+
+
+def main():
+    # 旧版切换
+    if os.path.exists("data/Record/UrlConfig.json"):
+        import transform
+        transform.init()
+
+    # 格式化
+    if not os.path.exists("data/Local"):
+        print(f"{Fore.YELLOW}重置中")
+        init()
+
+    # 配置更新
+    with open(f"data/Local/manage.json", encoding='utf-8') as f:
+        data = json.load(f)
+        user = data.get("USER")
+        user_config_path = data['USERS'][user].get('User_config_path')
+    with open(user_config_path, encoding="utf-8") as f:
+        user_config = json.load(f)
+    version = user_config['Version']
+    update_for_user_config(version, user_config, user_config_path)
+
+
+if __name__ == "__main__":
+    main()
