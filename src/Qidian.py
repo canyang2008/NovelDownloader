@@ -49,8 +49,8 @@ class Qidian:
             class_name = None
         try:
             self.Class_Driver.tab.get(url)
-            time.sleep(random.randint(self.Class_Config.Delay[0], self.Class_Config.Delay[1]))
-            if not self.Class_Driver.tab.states.is_alive: raise BaseError
+            time.sleep(random.uniform(self.Class_Config.Delay[0], self.Class_Config.Delay[1]))
+            if not self.Class_Driver.tab.states.is_alive: raise BaseError   # 浏览器被关闭
             self.Class_Driver.tab.wait.eles_loaded(
                 class_name, raise_err=True)  # 起点目录页、起点章节内容页（class）
             html = self.Class_Driver.tab.raw_data
@@ -87,20 +87,20 @@ class Qidian:
             return False
         # 获取网页内容
         name = soup.find('h1', id='bookName').get_text()
-        author = soup.find('span', class_='author').get_text()
-        author_desc = 'None'
-        """            BeautifulSoup(requests.get('https:' + soup.find('a', class_='author-img').get('href'), headers={
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0',
-            'referer': 'https://www.qidian.com/',
-            'Cookie': "; ".join([f"{c['name']}={c['value']}" for c in driver.get_cookies()])}).text, 'lxml').find(
-            'div', class_='header-msg-desc').text)
-"""
-        attribute = soup.find('p', class_='book-attribute').text
-        label = ' '.join([i.get_text() for i in soup.find('p', class_='all-label').find_all('a')])
-        all_label = attribute + label  # 标签
+        if soup.find('div', class_='author-information'):       # 判断是否为起点特殊页面，以作者图片是否显示为准
+            author = soup.find('a', class_='writer-name').get_text()
+            author_desc = soup.find('div', class_='outer-intro').find('p').get_text()
+            attribute = soup.find('p', class_='book-attribute').text
+            label = ' '.join([i.get_text() for i in soup.find('p', class_='all-label').find_all('a')])
+            all_label = attribute + label  # 标签
+            intro = soup.find('p', class_='intro').get_text()
+        else:
+            intro = ''
+            author_desc = ''
+            all_label = ''
+            author = soup.find('span', class_='author').get_text()
         count_word = soup.find('p', class_='count').find('em').get_text() + '字'
         last_update = soup.find('a', class_='book-latest-chapter').get_text()
-        intro = soup.find('p', class_='intro').get_text()
         intro_detail = soup.find('p', id='book-intro-detail').get_text()  # 简介
         abstract = f'{intro}\n{intro_detail}'
         book_cover_url = 'https:' + soup.find('a', id='bookImg').find('img').get('src')  # 封面图片链接
@@ -129,8 +129,9 @@ class Qidian:
     def download(self, title, chapter_url, index=0, page_url=None):
         html = self._get_soup_for_browser(chapter_url)
         soup = BeautifulSoup(html, 'lxml')
-        count_word = \
-        soup.find('span', class_='group inline-flex items-center mr-16px').get_text().replace('123 ', '').split()[1]
+        count_word = soup.find("div", class_="relative").find_all('span',
+                                                                  class_='group inline-flex items-center mr-16px')[
+            -1].get_text().split()[-1]
         update_time = soup.find('span', class_='chapter-date').get_text()
         novel_content = soup.find_all('span', class_='content-text')
         novel_content = '\n'.join([i.get_text() for i in novel_content])
@@ -149,4 +150,4 @@ class Qidian:
             'img_item': {}
         }
 
-        return self.novel
+        return True

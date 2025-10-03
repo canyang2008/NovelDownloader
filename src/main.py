@@ -10,10 +10,9 @@ import tkinter as tk
 import traceback
 from datetime import datetime
 from pathlib import Path
-
+import zipfile
 from colorama import init, Fore
 from tqdm import tqdm
-
 import Check
 from Biquge import Biquge
 from Fanqie import Fanqie
@@ -45,6 +44,20 @@ def global_exception_handler(exctype, value, tb):
         os.startfile(os.path.join(os.getenv("Temp"), "logs"))  # 弹出指定文件夹
     sys.exit(1)
 
+
+def backup(backup_dict, backup_dir):
+    backup_path = os.path.join(backup_dir, f"Novel_backup{datetime.now().strftime('%Y-%m-%d')}.zip")
+    with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_STORED) as zipf:
+        for path in backup_dict.keys():
+            if 'User_config_path' == path:
+                zipf.write(backup_dict['User_config_path'], "UserConfig.json")
+            if "Base_dir" == path:
+                for root,_,files in os.walk(backup_dict[path]):
+                    for file in files:
+                        if file.endswith(".json"):
+                            json_path = (os.path.join(backup_dict["Base_dir"], file))
+                            zipf.write(str(json_path), os.path.join('json',file))
+    return backup_path
 
 def range_split(deal_range, total_list):
     """
@@ -141,10 +154,13 @@ class NovelDownloader(tk.Tk):
 
     def load_down_args(self, url):
 
-        url = url.split('?')[0]  # 不带参数的url
+        url = url.split('?')[0].strip()  # 不带参数的url
         if 'https://changdunovel.com/wap/' in url:  # 处理番茄小说的分享链接
             book_id = re.search(r"book_id=(\d+)", url).group(1)
             url = 'https://fanqienovel.com/page/' + book_id
+        if "https://magev6.if.qidian.com/h5/share" in url:
+            book_id = re.search(r"bookld=(\d+)", url).group(1)
+            url = 'https://www.qidian.com/book/' + book_id
         if 'fanqienovel.com' in url:
             self.Class_Novel = self.Class_Fanqie
         elif 'qidian.com' in url:
@@ -169,8 +185,8 @@ class NovelDownloader(tk.Tk):
             self.Class_Save.save(full_save=True)  # 覆写模式保存
         if self.range:
             self.range = range_split(self.range, len(self.Class_Novel.down_title_list))  # 分割范围成连续数字列表
-            self.Class_Novel.down_title_list = [self.Class_Novel.down_title_list[i - 1] for i in self.range]
-            self.Class_Novel.down_url_list = [self.Class_Novel.down_url_list[i - 1] for i in self.range]
+            self.Class_Novel.down_title_list = [self.Class_Novel.down_title_list[index - 1] for index in self.range]
+            self.Class_Novel.down_url_list = [self.Class_Novel.down_url_list[index - 1] for index in self.range]
         self.Class_Save.config(self.Class_Novel, self.Class_Config)  # 初始化保存配置
         return True
 
@@ -202,6 +218,23 @@ class NovelDownloader(tk.Tk):
         while True:
             # 重新加载默认Config
             self.Class_Config.load()
+            backup_item = self.Class_Config.User_config.get('Backup')
+            if backup_item.get("Auto", False):
+                last_backup_time = backup_item.get("Last_time", 0)
+                now_time = time.time()
+                if now_time - last_backup_time > 86400:
+                    backup_dir = backup_item.get("dir")
+                    backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
+                    backup_path = backup(backup_dict, backup_dir)
+                    now_time = time.time()
+                    new_backup_item = {
+                        "Auto": False,
+                        "dir": backup_dir,
+                        "Last_time": now_time
+                    }
+                    self.Class_Config.User_config['Backup'] = new_backup_item
+                    self.Class_Config.save_config(1)
+                    print(f"已自动保存成功,已保存在 {backup_path}")
             Check.main()
             try:
                 saved_mems = self.Class_Config.mems
@@ -224,6 +257,7 @@ class NovelDownloader(tk.Tk):
 3.批量下载：
 4.指定章节下载:
 5.设置:
+6.备份：
 """).strip()
                 match self.select:  # 嵌套严重，被绕晕了..
                     case '0':
@@ -256,7 +290,7 @@ class NovelDownloader(tk.Tk):
                                 self.Class_Config.save_config(1)    # 保存状态
 
                             case '2':
-                                tab.get("https://fanqienovel.com/main/writer/login")
+                                tab.get("https://www.qidian.com/")
                                 input("登录后按下任意键继续..")
 
                             case '3':
@@ -316,7 +350,7 @@ class NovelDownloader(tk.Tk):
                         self.download_url = self.load_down_args(self.download_url)
                         self.download_novel()
                         """
-建议直接通过JSON文件修改配置，这样更快更灵活
+建议直接通过JSON文件修改配置，这样更快更灵活.（若精通）
 """
                     case "5":
                         choice = input(
@@ -444,6 +478,28 @@ class NovelDownloader(tk.Tk):
                                         else:
                                             print("请正确输入")
                                             continue
+                    case "6":
+                        backup_item = self.Class_Config.User_config.get("Backup", {})
+                        backup_dir = backup_item.get("dir")
+                        backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
+                        if backup_dir is None:
+                            set_path = input("请指定保存目录：")
+                            if not set_path or 'r' in set_path.lower():
+                                print("未指定目录，已退出")
+                            else:
+                                try:
+                                    os.makedirs(set_path, exist_ok=True)
+                                except (OSError,FileNotFoundError) as e:
+                                    print(e)
+                                    continue
+                                self.Class_Config.User_config["Backup_path"] = set_path
+                                self.Class_Config.save_config(1)
+                                backup_path = backup(backup_dict, backup_dir)
+                                print(f"保存成功,已保存在 {backup_path}")
+                        else:
+                            """打包成无压缩的zip文件，便于移动"""
+                            backup_path = backup(backup_dict, backup_dir)
+                            print(f"保存成功,已保存在 {backup_path}")
 
             except ValueError as e:
                 if str(e).startswith("NovelDownloader:"):
@@ -507,12 +563,9 @@ console_handler.setFormatter(formatter)
 
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
-
 print(f"""
 作者：Canyang2008
 项目地址：https://github.com/canyang2008/NovelDownloader
-如果在使用过程中想反馈，欢迎参与讨论:
-    QQ：765857967    issues：https://github.com/canyang2008/NovelDownloader/issues/1\n
 检查配置中……{Fore.YELLOW}注：格式化操作是删除data/Local文件夹再次运行即可\n\n""")
 sys.excepthook = global_exception_handler  # 设置全局异常处理器
 downloader = NovelDownloader(logger)
