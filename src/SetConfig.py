@@ -2,6 +2,7 @@ import copy
 import json
 import os
 
+
 class SetConfig:
     """配置类"""
 
@@ -68,93 +69,6 @@ class SetConfig:
         # 读取mems.json
         with open(os.path.join(self.Base_dir, 'mems.json'), "r", encoding="utf-8") as f:
             self.mems = json.load(f)
-
-    def set_new_userconfig(self, user_name):
-        self.User_manage["USERS"][user_name] = {
-            "User_config_path": f"data/Local/{user_name}/UserConfig.json",
-            "User_data_dir": f"data/Local/{user_name}/User Data",
-            "Base_dir": f"data/Local/{user_name}/json"}
-        self.User_config["USER"] = user_name
-        new_user_config = {
-            "Version": "1.1.1",
-            "User_name": user_name,
-            "Group": "Default",
-            "README": "",
-            "Play_completion_sound": False,
-            "Get_mode": 0,
-            "Browser": {
-                "State": {
-                    "Fanqie": -1,
-                    "Qidian": 0,
-                    "Bqg128": 0
-                },
-                "Timeout": 10,
-                "Max_retry": 3,
-                "Interval": 2,
-                "Delay": [
-                    1,
-                    3
-                ],
-                "Port": 9444 + len(self.User_manage["USERS"].keys()),
-                "Headless": False
-            },
-            "Api": {
-                "Fanqie": {
-                    "Option": "oiapi",
-                    "oiapi": {
-                        "Max_retry": 3,
-                        "Timeout": 10,
-                        "Interval": 2,
-                        "Delay": [
-                            1,
-                            3
-                        ],
-                        "Key": ""
-                    },
-                    "requests": {
-                        "Max_retry": 3,
-                        "Timeout": 10,
-                        "Interval": 2,
-                        "Delay": [
-                            1,
-                            3
-                        ],
-                        "Cookie": ""
-                    }
-                },
-                "Qidian": {
-                    "Option": "requests",
-                    "requests": {
-                        "Max_retry": 3,
-                        "Timeout": 10,
-                        "Interval": 2,
-                        "Delay": [
-                            1,
-                            3
-                        ],
-                        "Cookie": ""
-                    }
-                },
-                "Biquge": {
-                    "Option": "requests",
-                    "requests": {
-                        "Max_retry": 3,
-                        "Timeout": 10,
-                        "Interval": 2,
-                        "Delay": [
-                            1,
-                            3
-                        ],
-                        "Cookie": ""
-                    }
-                }
-            },
-            "Unprocess": []
-        }
-        with open(f"data/Local/{user_name}/UserConfig.json", 'w', encoding='utf-8') as f:
-            json.dump(new_user_config, f, ensure_ascii=False, indent=4)
-        self.save_config(2)
-        self.load()
 
     def set_config(self, url):
         if self.Novel_update:

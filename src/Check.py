@@ -1818,55 +1818,6 @@ def insert_into_dict(original_dict, new_dict, after_key):
     return result
 
 
-def update_for_user_config(user_config_version, user_config, user_config_path):
-    match user_config_version:
-        case "1.1.0":
-            user_config['Api']['Qidian'] = {}
-            user_config['Api']['Biquge'] = {}
-            new_dict = {
-                "Requests": {
-                    "Fanqie": {
-                        "Max_retry": 3,
-                        "Timeout": 10,
-                        "Interval": 2,
-                        "Delay": [
-                            1,
-                            3
-                        ],
-                        "Cookie": "",
-                    },
-                    "Qidian": {
-                        "Max_retry": 3,
-                        "Timeout": 10,
-                        "Interval": 2,
-                        "Delay": [
-                            1,
-                            3
-                        ],
-                        "Cookie": "",
-                    },
-                    "Biquge": {
-                        "Max_retry": 3,
-                        "Timeout": 10,
-                        "Interval": 2,
-                        "Delay": [
-                            1,
-                            3
-                        ],
-                        "Cookie": "",
-                    }
-                }
-            }
-            user_config['Version'] = '1.1.1'
-            user_config = insert_into_dict(user_config, new_dict, 'Api')
-            del new_dict
-            new_dict = {'Threads_num': 1}
-            user_config = insert_into_dict(user_config, new_dict, 'Get_mode')
-            with open(user_config_path, 'w', encoding='utf-8') as f:
-                json.dump(user_config, f, ensure_ascii=False, indent=4)
-            pass
-
-
 def main():
     # 旧版切换
     if os.path.exists("data/Record/UrlConfig.json"):
@@ -1878,16 +1829,5 @@ def main():
         print(f"{Fore.YELLOW}重置中")
         init()
 
-    # 配置更新
-    with open(f"data/Local/manage.json", encoding='utf-8') as f:
-        data = json.load(f)
-        user = data.get("USER")
-        user_config_path = data['USERS'][user].get('User_config_path')
-    with open(user_config_path, encoding="utf-8") as f:
-        user_config = json.load(f)
-    version = user_config['Version']
-    update_for_user_config(version, user_config, user_config_path)
 
-
-if __name__ == "__main__":
-    main()
+main()

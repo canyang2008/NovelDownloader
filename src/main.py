@@ -8,11 +8,14 @@ import sys
 import time
 import tkinter as tk
 import traceback
+import zipfile
 from datetime import datetime
 from pathlib import Path
-import zipfile
+from tkinter import filedialog
+
 from colorama import init, Fore
 from tqdm import tqdm
+
 import Check
 from Biquge import Biquge
 from Fanqie import Fanqie
@@ -24,6 +27,7 @@ from SetConfig import SetConfig
 faulthandler.enable()
 init(autoreset=True)
 """当前版本暂未完全测试，但是下载和更新功能(Chrome模式)可以使用"""
+
 
 def global_exception_handler(exctype, value, tb):
     """全局异常处理器"""
@@ -45,21 +49,76 @@ def global_exception_handler(exctype, value, tb):
     sys.exit(1)
 
 
-def backup(backup_dict, backup_dir):
-    backup_path = os.path.join(backup_dir, f"Novel_backup{datetime.now().strftime('%Y-%m-%d')}.zip")
-    with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_STORED) as zipf:
-        for path in backup_dict.keys():
-            if 'User_config_path' == path:
-                zipf.write(backup_dict['User_config_path'], "UserConfig.json")
-            if "Base_dir" == path:
-                for root,_,files in os.walk(backup_dict[path]):
-                    for file in files:
-                        if file.endswith(".json"):
-                            json_path = (os.path.join(backup_dict["Base_dir"], file))
-                            zipf.write(str(json_path), os.path.join('json',file))
-    return backup_path
+def backup(user_manage: dict,
+           backup_config: dict,
+           auto: bool = False) -> dict | bool:
+    """
+    备份UserConfig.json和用户下的所有小说的JSON
+    """
+    user = user_manage['USER']
+    backup_path_list = user_manage['USERS'][user]
+    # 获取备份目录
+    if auto:  # 隐式自动保存
+        set_dir = backup_config['Dir']
+    else:  # 显式保存
+        if backup_config.get("Pop_up_folder", False):  # 是否弹出文件夹选择框
+            root = tk.Tk()
+            root.withdraw()  # 隐藏主窗口
+            print("请在文件夹选择框选择文件夹：")
+            time.sleep(1)
+            set_dir = filedialog.askdirectory()  # 弹出选择文件夹对话框
+            root.destroy()
+        else:
+            set_dir = backup_config['Dir']
 
-def range_split(deal_range, total_list):
+    if not set_dir:  # 备份保存目录为空时
+        if not auto:
+            print("未指定目录，已退出")
+        return False
+    else:
+        # 防止目录不合理报错
+        try:
+            os.makedirs(set_dir, exist_ok=True)
+        except OSError as e:
+            print(e)
+            return False  # 跳过
+    # 获取备份名称并格式化
+    backup_name = backup_config.get("Name")
+    transform_list = re.findall(r'<.+?>', backup_name)
+    for index in transform_list:
+        # 替换为当前用户
+        if '<User>' == index:
+            backup_name = backup_name.replace(index, user, 1)
+        # 替换为当前时间
+        if index.startswith('<T:'):
+            time_format = re.search(r"<T:'(.+)'>", index).group(1)
+            time_str = time.strftime(time_format, time.localtime())
+            backup_name = backup_name.replace(index, time_str, 1)
+    # 备份保存路径
+    set_path = Path(set_dir) / backup_name
+    try:
+        with zipfile.ZipFile(set_path, 'w', zipfile.ZIP_STORED) as zipf:
+            for path in backup_path_list.keys():
+                # UserConfig,json加入zip
+                if 'User_config_path' == path:
+                    zipf.write(backup_path_list['User_config_path'], "UserConfig.json")
+                # 所有小说JSON加入zip
+                if "Base_dir" == path:
+                    for root, _, files in os.walk(backup_path_list[path]):
+                        for file in files:
+                            if file.endswith(".json"):
+                                json_path = Path(root) / file
+                                zipf.write(json_path, os.path.join('json', file))
+
+        backup_config['Last_time'] = time.time()
+        return backup_config
+    except Exception as e:
+        print(f"无法备份,原因：{e}")
+        return False
+
+
+def range_split(deal_range: str,
+                total_list: int | None) -> list[int]:
     """
     处理范围字符串，将其转换为索引列表。
     """
@@ -129,11 +188,11 @@ def range_split(deal_range, total_list):
     return sorted_range
 
 
-class NovelDownloader(tk.Tk):
+class NovelDownloader:
 
     def update(self):
-        file_name = self.Class_Config.mems[self.Class_Config.Group][self.download_url] + '.json'    # 需要读取的文件全名
-        json_path = Path(self.Class_Config.Base_dir) / file_name        # 路径
+        file_name = self.Class_Config.mems[self.Class_Config.Group][self.download_url] + '.json'  # 需要读取的文件全名
+        json_path = Path(self.Class_Config.Base_dir) / file_name  # 路径
         if not os.path.exists(json_path):
             print('json文件被移动或不存在')
         else:
@@ -171,13 +230,14 @@ class NovelDownloader(tk.Tk):
             print('不支持该网站，请检查链接')
             raise ValueError(f"NovelDownloader:The website corresponding to this url does not support\nUrl: {url}")
 
-        self.download_url = url         # 全局的url
+        self.download_url = url  # 全局的url
         self.Class_Config.set_config(url)  # 通过url设置配置
-        if self.Class_Config.Get_mode == 0:     # 选择以Chrome获取
-            self.Class_Driver.config(user_data_dir=self.Class_Config.User_data_dir, port=self.Class_Config.Port,    # 配置Chrome参数
+        if self.Class_Config.Get_mode == 0:  # 选择以Chrome获取
+            self.Class_Driver.config(user_data_dir=self.Class_Config.User_data_dir, port=self.Class_Config.Port,
+                                     # 配置Chrome参数
                                      headless=self.Class_Config.Headless)
-            self.Class_Driver.run()     # Chrome启动！
-        if not self.Class_Novel.get_page(self.download_url):    # 获取小说目录页的一些信息
+            self.Class_Driver.run()  # Chrome启动！
+        if not self.Class_Novel.get_page(self.download_url):  # 获取小说目录页的一些信息
             return False
         if self.Class_Config.Novel_update:
             self.update()  # 获取需更新小说标题及链接
@@ -189,7 +249,6 @@ class NovelDownloader(tk.Tk):
             self.Class_Novel.down_url_list = [self.Class_Novel.down_url_list[index - 1] for index in self.range]
         self.Class_Save.config(self.Class_Novel, self.Class_Config)  # 初始化保存配置
         return True
-
 
     def _download(self):
         index = self.Class_Novel.all_title_list.index(self.Class_Novel.down_title_list[0]) - 1
@@ -212,30 +271,40 @@ class NovelDownloader(tk.Tk):
             except KeyboardInterrupt:
                 print("已退出..")
 
-
     def func(self):
+        backup_config = self.Class_Config.User_config.get('Backup', {})
+        if backup_config.get("Auto", False):
+            last_backup_time = backup_config.get("Last_time", 0)
+            now_time = time.time()
+            if now_time - last_backup_time > 86400:
+                backup_dir = backup_config.get("dir")
+                backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
+                backup_path = backup(backup_dict, backup_dir)
+                print(f"已自动保存成功,已保存在 {backup_path}")
 
         while True:
-            # 重新加载默认Config
-            self.Class_Config.load()
-            backup_item = self.Class_Config.User_config.get('Backup')
-            if backup_item.get("Auto", False):
-                last_backup_time = backup_item.get("Last_time", 0)
-                now_time = time.time()
-                if now_time - last_backup_time > 86400:
-                    backup_dir = backup_item.get("dir")
-                    backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
-                    backup_path = backup(backup_dict, backup_dir)
-                    now_time = time.time()
-                    new_backup_item = {
-                        "Auto": False,
-                        "dir": backup_dir,
-                        "Last_time": now_time
-                    }
-                    self.Class_Config.User_config['Backup'] = new_backup_item
-                    self.Class_Config.save_config(1)
-                    print(f"已自动保存成功,已保存在 {backup_path}")
-            Check.main()
+            # 自动备份
+            try:  # 懒得测新功能所以就用try-except了
+                backup_config = self.Class_Config.User_config.get('Backup', {})
+                if backup_config.get('Auto', False):
+                    auto_save_method = backup_config.get('Auto_save_method', '')
+                    if auto_save_method.startswith('T:'):
+                        time_interval = re.search(r"(\d+)", auto_save_method).group(1)
+                        if time_interval:
+                            now_time = time.time()
+                            last_backup_time = backup_config.get('Last_time', -1)
+                            if now_time - last_backup_time > time_interval:
+                                new_backup_config = backup(self.Class_Config.User_manage, backup_config, auto=True)
+                                self.Class_Config.User_config["Backup"] = new_backup_config
+                                self.Class_Config.save_config(1)
+                        else:
+                            print(f"{Fore.YELLOW}注意：保存方式（以时间保存）指定的时间间隔格式不正确，请检查其设置")
+                # 重新加载默认Config
+                self.Class_Config.load()
+                Check.main()
+            except Exception as e:
+                print(e)
+                pass
             try:
                 saved_mems = self.Class_Config.mems
                 urls_para = []
@@ -273,21 +342,21 @@ class NovelDownloader(tk.Tk):
                         # 配置Chrome
                         self.Class_Driver.config(user_data_dir=self.Class_Config.User_data_dir,
                                                  port=self.Class_Config.Port, headless=False)
-                        tab = self.Class_Driver.run()   # Chrome启动
+                        tab = self.Class_Driver.run()  # Chrome启动
                         match option:
                             case '1':
                                 tab.get("https://fanqienovel.com/main/writer/login")
                                 input("登录后按下任意键继续..")
-                                html = tab.raw_data     # html数据
+                                html = tab.raw_data  # html数据
                                 self.Class_Fanqie.user_state_for_html(html)
                                 match self.Class_Fanqie.user_state_code:
-                                    case -1:# 未登录
+                                    case -1:  # 未登录
                                         self.Class_Config.User_config['Browser']['State']['Fanqie'] = -1
-                                    case 0:# 已登录但无vip
+                                    case 0:  # 已登录但无vip
                                         self.Class_Config.User_config['Browser']['State']['Fanqie'] = 0
-                                    case 1:# 有vip
+                                    case 1:  # 有vip
                                         self.Class_Config.User_config['Browser']['State']['Fanqie'] = 1
-                                self.Class_Config.save_config(1)    # 保存状态
+                                self.Class_Config.save_config(1)  # 保存状态
 
                             case '2':
                                 tab.get("https://www.qidian.com/")
@@ -297,7 +366,6 @@ class NovelDownloader(tk.Tk):
                                 tab.get("https://www.biqugequ.org/")
                                 input("登录后按下任意键继续..")
 
-
                     case "1":
                         # 按Group，name输出
                         for sequence in range(len(urls_para)):  print(
@@ -306,12 +374,12 @@ class NovelDownloader(tk.Tk):
                         if not choice:
                             print('输入错误')
                             continue
-                        update_range = range_split(choice, len(urls_para))      # 分割为纯数字型列表
+                        update_range = range_split(choice, len(urls_para))  # 分割为纯数字型列表
                         for index in update_range:
                             self.download_url = urls_para[index - 1][2]
-                            self.Class_Config.Novel_update = True       # 标记为更新
-                            self.load_down_args(self.download_url)      # 配置
-                            self.download_novel()       # 下载
+                            self.Class_Config.Novel_update = True  # 标记为更新
+                            self.load_down_args(self.download_url)  # 配置
+                            self.download_novel()  # 下载
 
                     case "2":
                         input_url = input('请输入小说链接:')
@@ -320,16 +388,16 @@ class NovelDownloader(tk.Tk):
                             continue
                         if input_url in urls:
                             print("当前链接存在，自动更新中…")
-                            self.Class_Config.Novel_update = True       # 标记为更新
+                            self.Class_Config.Novel_update = True  # 标记为更新
                         self.load_down_args(input_url)  # 配置
-                        self.download_novel()       # 下载
+                        self.download_novel()  # 下载
 
                     case "3":
                         print(
                             """将打开urls.txt,请在文件中输入小说链接，一行一个。\
                             输入完成后请保存并关闭文件，然后按 Enter 键继续...""")
                         time.sleep(0.5)
-                        os.startfile('data\\Local\\urls.txt')       # 弹出url.txt（Windows）
+                        os.startfile('data\\Local\\urls.txt')  # 弹出url.txt（Windows）
                         input()
                         with open('data\\Local\\urls.txt', 'r', encoding='utf-8') as f_:
                             for line in f_:
@@ -337,7 +405,7 @@ class NovelDownloader(tk.Tk):
                                     continue
                                 if line in urls:
                                     print("当前链接存在，自动更新中…")
-                                    self.Class_Novel.Novel_update = True    # 标记为更新
+                                    self.Class_Novel.Novel_update = True  # 标记为更新
                                 self.load_down_args(line)
                                 self.download_novel()
 
@@ -353,169 +421,61 @@ class NovelDownloader(tk.Tk):
 建议直接通过JSON文件修改配置，这样更快更灵活.（若精通）
 """
                     case "5":
-                        choice = input(
-                            """
-1.账户操作：
-2.分组内操作：
-""")
-                        match choice:
-                            case '1':
-                                users = list(self.Class_Config.User_manage['USERS'].keys())
-                                for user_idx in range(1, len(users) + 1):
-                                    print(f"{user_idx}.{users[user_idx - 1]}")
-                                print(f"当前账户:{Fore.LIGHTBLUE_EX}{self.Class_Config.USER}")
-                                print("如果退出请按r键")
-                                choice = input("1.账户切换    2.账户创建    3.账户删除").strip()
-                                match choice:
-                                    case "1":
-                                        print("请选择账户(数字):")
-                                        while True:
-                                            option = input().strip()
-                                            if not option or 'r' in option.lower():
-                                                print("已退出..")
-                                                break
-                                            if re.match(r"\d+", option.strip()):
-                                                option = int(option)
-                                                self.Class_Config.User_manage["USER"] = users[option - 1]
-                                                self.Class_Config.save_config(2)
-                                                self.Class_Config.load()
-                                                print(f"账户切换成功({self.Class_Config.USER})")
-                                                break
-                                            else:
-                                                print("请重新输入:")
-                                                continue
-
-                                    case "2":
-                                        while True:
-                                            user_input = input("请输入账户名(前后不允许空格):").strip()
-                                            if not user_input or 'r' in user_input.lower():
-                                                print("不创建账户，已退出..")
-                                                break
-                                            if user_input in users:
-                                                print("账户已存在，请重新创建..")
-                                                continue
-                                            else:
-                                                self.Class_Config.set_new_userconfig(user_input)
-                                                print(f"账户已创建成功({self.Class_Config.USER})")
-                                                break
-
-                                    case "3":
-                                        option = input("请选择需删除的账户(数字):").strip()
-                                        if not option or 'r' in option.lower():
-                                            print("已退出..")
-                                        if re.match(r"\d+", option.strip()):
-                                            option = int(option)
-                                            del_user = self.Class_Config.User_manage["USERS"].pop(option - 1)
-                                            if del_user == self.Class_Config.USER:      # 当删除的是当前账户
-                                                self.Class_Config.User_manage["USER"] = users[0]
-                                                self.Class_Config.save_config(2)
-                                                self.Class_Config.load()
-                                                print(f"账户 {del_user} 已删除成功({self.Class_Config.USER})")
-                                            self.Class_Config.save_config()
-
-                            case '2':
-                                groups = list(self.Class_Config.mems.keys())
-                                # 输出所有Group
-                                for group_idx in range(1, len(groups) + 1):
-                                    print(f"{group_idx}.{groups[group_idx - 1]}")
-                                print(f"当前分组:{self.Class_Config.GROUP}")
-                                print("如果退出请按r键")
-                                option = input("1.分组切换    2.分组创建    3.分组删除").strip()
-                                match option:
-                                    case "1":
-                                        print("请选择分组(数字):")
-                                        while True:
-                                            option = input().strip()
-                                            if not option or 'r' in option.lower():
-                                                print("已退出..")
-                                                break
-                                            # 符合选择规范
-                                            if re.match(r"\d+", option.strip()):
-                                                option = int(option)
-                                                self.Class_Config.User_config['Group'] = groups[option - 1]
-                                                self.Class_Config.save_config(1)    # 保存为UserConfig.json
-                                                self.Class_Config.load()            # 重新加载
-                                                print(f"分组切换成功({self.Class_Config.GROUP})")
-                                                break
-                                            else:
-                                                print("请重新输入:")
-                                                continue
-
-                                    case "2":
-                                        while True:
-                                            group_input = input("请输入分组名(前后不允许空格):").strip()
-                                            if not group_input or 'r' in group_input.lower():
-                                                print("不创建分组，已退出..")
-                                                break
-                                            if group_input in groups:
-                                                print("分组已存在，请重新创建..")
-                                                continue
-                                            else:
-                                                self.Class_Config.User_config["Group"] = group_input
-                                                self.Class_Config.mems[group_input] = {}    # 新建一个group
-                                                self.Class_Config.save_config(0)    # 保存mems.json
-                                                self.Class_Config.save_config(1)    # 保存UserConfig.json
-                                                self.Class_Config.load()            # 重新加载
-                                                print(f"分组已创建成功({self.Class_Config.GROUP})")
-                                                break
-
-                                    case "3":
-                                        print("请选择需删除的分组(数字):", end="")
-                                        option = input().strip()
-                                        if not option or 'r' in option.lower():
-                                            print("已退出..")
-                                        if re.match(r"\d+", option.strip()):
-                                            option = int(option)
-                                            del_group = groups[option - 1]
-                                            self.Class_Config.mems.pop(del_group)
-                                            # 如果删除的是当前的GROUP
-                                            if del_group == self.Class_Config.GROUP:
-                                                self.Class_Config.User_config['Group'] = groups[0]
-                                            self.Class_Config.save_config(0)    # 保存mems.json
-                                            self.Class_Config.save_config(1)    # 保存UserConfig.json
-                                            self.Class_Config.load()            # 重新加载
-                                            print(f"分组 {del_group} 已删除成功({self.Class_Config.GROUP})")
-                                        else:
-                                            print("请正确输入")
-                                            continue
+                        print("pass")
                     case "6":
-                        backup_item = self.Class_Config.User_config.get("Backup", {})
-                        backup_dir = backup_item.get("dir")
-                        backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
-                        if backup_dir is None:
-                            set_path = input("请指定保存目录：")
-                            if not set_path or 'r' in set_path.lower():
-                                print("未指定目录，已退出")
-                            else:
-                                try:
-                                    os.makedirs(set_path, exist_ok=True)
-                                except (OSError,FileNotFoundError) as e:
-                                    print(e)
-                                    continue
-                                self.Class_Config.User_config["Backup_path"] = set_path
+                        # 获取Base的路径 和 User_config.json的路径
+                        user_manage = self.Class_Config.User_manage
+                        # 备份配置
+                        backup_config = self.Class_Config.User_config.get("Backup")
+                        # 默认备份配置
+                        default_backup_item = {
+                            "Auto": False,
+                            "Auto_save_method": "T:86400",
+                            "Dir": "C:\\\\",
+                            "Name": "Novel_backup <User><T:'%Y-%m-%d'>.zip",
+                            "Last_time": -1,
+                            "Pop_up_folder": True
+                        }
+
+                        if backup_config is None:
+                            cho = input('''检测到UserConfig没有保存配置，是否添加？ (y/n)\n
+配置添加：
+1.自动保存(false) 
+2.自动保存方式(每隔86400秒自动保存) 
+3.保存路径(C:\\\\) 
+4.备份名字：Novel_backup <User><T:'%Y-%m-%d'>.zip 
+5.上一次保存时间(-1) 
+5.显式备份自动弹出文件夹选择对话框(true)
+                                        ''')
+
+                            if cho.lower() == 'y':
+                                self.Class_Config.User_config["Backup"] = default_backup_item
+                                backup_config = default_backup_item
                                 self.Class_Config.save_config(1)
-                                backup_path = backup(backup_dict, backup_dir)
-                                print(f"保存成功,已保存在 {backup_path}")
-                        else:
-                            """打包成无压缩的zip文件，便于移动"""
-                            backup_path = backup(backup_dict, backup_dir)
-                            print(f"保存成功,已保存在 {backup_path}")
+                            else:
+                                backup_config = default_backup_item  # 使用默认备份方式
+
+                        new_backup_config = backup(backup_config, user_manage, auto=False)
+                        self.Class_Config.User_config["Backup"] = new_backup_config
+                        self.Class_Config.save_config(1)
 
             except ValueError as e:
                 if str(e).startswith("NovelDownloader:"):
                     continue
-                else:raise
+                else:
+                    raise
             except KeyboardInterrupt:
                 code = input("是否退出？y/n")
                 if 'y' in code.lower() or 'Y' in code.lower():
                     sys.exit(0)
                 else:
                     continue
+            except Exception as e:
+                print(e)
         return True
 
     def __init__(self, logger_):
 
-        super().__init__()
         Check.main()
         self.logger = logger_
         self.select = None

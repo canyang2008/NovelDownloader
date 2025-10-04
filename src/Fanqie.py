@@ -33,7 +33,7 @@ class Fanqie:
 
     def user_state_for_html(self, html):
         soup = BeautifulSoup(html, 'lxml')
-        user_info_div = soup.find("div", class_="slogin-user-avatar__info")
+        user_info_div = soup.find("div", class_="muye-header-right")
         if user_info_div.find('img'):  # 有图片证明已登录
             self.user_state_code = 0
         else:
