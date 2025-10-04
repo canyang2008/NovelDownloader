@@ -54,5 +54,45 @@
         "one_file": true
       }
     },
+  "Requests": {
+    "Fanqie": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    },
+    "Qidian": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    },
+    "Biquge": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    }
+  },
+  "Backup": {
+    "Auto": false,
+    "Auto_save_method": "T:86400",
+    "Dir": "C:\\\\",
+    "Name": "Novel_backup <User> <T:'%Y-%m-%d'>.zip",
+    "Last_time": -1,
+    "Pop_up_folder": true
+  },
     "Unprocess": []
-  }
+}
