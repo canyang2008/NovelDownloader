@@ -1,10 +1,10 @@
 {
-    "Version": "1.1.0",
+    "Version": "1.1.4",
     "User_name": "Default",
     "Group": "Default",
-    "README": "",
+    "README": "This is the JSON template configured by the user, which is the most important template file for creating new users. Please do not modify it arbitrarily",
     "Play_completion_sound": false,
-    "Get_mode": 1,
+    "Get_mode": 0,
     "Browser": {
       "State": {
         "Fanqie": -1,
@@ -19,7 +19,8 @@
         1.5
       ],
       "Port": 9445,
-      "Headless": false
+      "Headless": false,
+      "path": ""
     },
     "Api": {
       "Fanqie": {
@@ -38,17 +39,20 @@
     },
     "Save_method": {
       "json": {
+        "enable": true,
         "name": "name_default",
         "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
         "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
       },
       "txt": {
+        "enable": true,
         "name": "name_default",
         "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
         "gap": 0,
         "max_filesize": -1
       },
       "html": {
+        "enable": true,
         "name": "name_default",
         "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
         "one_file": true
