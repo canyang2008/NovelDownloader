@@ -188,15 +188,18 @@
   - `Requests` -> `dict`: requests配置（未应用）
   - `Save_method` -> `dict`: 保存方式
     - `json` -> `dict`:保存json及其配置
+      - `enable` -> `bool`: 是否以该格式保存
       - `name` -> `str`: 保存的文件名，默认`name_default`，即当前小说名字
       - `dir` -> `str`: 保存目录
       - `img_dir` -> `str`: 图片保存目录
     - `txt` -> `dict`:保存txt及其配置
+      - `enable` -> `bool`: 是否以该格式保存
       - `name` -> `str`: 保存的文件名，默认`name_default`，即当前小说名字
       - `dir` -> `str`: 保存目录
       - `gap` -> `int`: 分块保存，默认为0，即但文件保存
       - `max_filesize` -> `int`: 以文本大小切割，当大于 N KB时切割保存，单位：KB
     - `html` -> `dict`:保存txt及其配置
+      - `enable` -> `bool`: 是否以该格式保存
       - `name` -> `str`: 保存的文件名，默认`name_default`，即当前小说名字
       - `dir` -> `str`: 保存目录
       - `one_file` -> `bool`: 是否把图片数据嵌入至html中以保存为一个文件
@@ -324,15 +327,18 @@
     - `Delay` -> `list[float,float]`: 延迟，分别为上下限
     - `Save_method` -> `dict`: 保存方式
       - `json` -> `dict`:保存json及其配置
+      - `enable` -> `bool`: 是否以该格式保存
         - `name` -> `str`: 保存的文件名，默认`name_default`，即当前小说名字
         - `dir` -> `str`: 保存目录
         - `img_dir` -> `str`: 图片保存目录
       - `txt` -> `dict`:保存txt及其配置
+      - `enable` -> `bool`: 是否以该格式保存
         - `name` -> `str`: 保存的文件名，默认`name_default`，即当前小说名字
         - `dir` -> `str`: 保存目录
         - `gap` -> `int`: 分块保存，默认为0，即但文件保存
         - `max_filesize` -> `int`: 以文本大小切割，当大于 N KB时切割保存，单位：KB
       - `html` -> `dict`:保存txt及其配置
+      - `enable` -> `bool`: 是否以该格式保存
         - `name` -> `str`: 保存的文件名，默认`name_default`，即当前小说名字
         - `dir` -> `str`: 保存目录
         - `one_file` -> `bool`: 是否把图片数据嵌入至html中以保存为一个文件
