@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import copy
+
+VERSION = '1.1.4'
 import faulthandler
 import json
 import logging
@@ -6,17 +9,15 @@ import os
 import re
 import sys
 import time
-import tkinter as tk
 import traceback
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog
-
+import Check
+import requests
 from colorama import init, Fore
 from tqdm import tqdm
 
-import Check
 from Biquge import Biquge
 from Fanqie import Fanqie
 from Qidian import Qidian
@@ -26,7 +27,97 @@ from SetConfig import SetConfig
 
 faulthandler.enable()
 init(autoreset=True)
+template_userconfig = None
+template_mems = None
 """当前版本暂未完全测试，但是下载和更新功能(Chrome模式)可以使用"""
+
+
+def setting(option:str, user_config:dict) -> dict | bool:
+    """设置配置
+1.获取模式
+2.Chrome设置
+3.API设置
+4.Requests设置
+5.保存方式设置
+6.保存设置"""
+    match option:
+        case '1':
+            print("1.Chrome模式   2.API模式(仅番茄)     3.Requests模式(开发中)")
+            current_mode = user_config['Get_mode']
+            match current_mode:
+                case 1:
+                    print("当前模式：Chrome")
+                case 2:
+                    print("当前模式：API")
+                case 3:
+                    print("当前模式：Requests")
+            mode_option = input("是否切换?(1|2|3/n)")
+            if re.match('^[1-3]$', mode_option.strip()):
+                mode = int(mode_option)
+                user_config['Get_mode'] = mode
+                return user_config
+            elif mode_option == 'n':
+                print("已退出")
+            else:
+                print("输入错误")
+                return False
+
+        case '2':
+            timeout = user_config['Browser']["Timeout"]
+            max_retry = user_config['Browser']["Max_retry"]
+            interval = user_config['Browser']["Interval"]
+            delay = user_config['Browser']['Delay']
+            port = user_config['Browser']['Port']
+            headless = user_config['Browser']['Headless']
+            delay_str = f"上限：{delay[0]}s 下限：{delay[1]}s"
+            print(
+                f'1.超时时间(当前:{timeout}s)   2.最大重试次数(当前:{max_retry})    3.重试时间间隔(当前:{interval}s)    '
+                f'4.延迟(当前:{delay_str})    5.Chrome端口号(当前:{port})     6.无头模式(当前:{headless})')
+            choice = input("请选择修改或退出(n)")
+            if re.match('^[1-6]$', choice.strip()):
+                choice = int(choice)
+                match choice:
+                    case 1:
+                        timeout_input = input("请输入超时时间")
+                        if re.match('^[1-5]$', timeout_input.strip()):
+                            user_config['Browser']['Timeout'] = int(timeout_input)
+                            return user_config
+                    case 2:
+                        max_retry_input = input("请输入最大重试次数")
+                        if re.match('^[1-5]$', max_retry_input.strip()):
+                            user_config['Browser']['Max_retry'] = int(max_retry_input)
+                            return user_config
+                    case 3:
+                        interval_input = input("请输入最大重试次数")
+                        if re.match('^[1-5]$', interval_input.strip()):
+                            user_config['Browser']['Max_retry'] = int(interval_input)
+                            return user_config
+                    case 4:
+                        delay_input = input("请输入上限 下限，用空格隔开")
+                        if re.match('^(\d+) (\d+)$', delay_input.strip()):
+                            delay_input_list = delay_input.split()
+                            if len(delay_input_list) == 2 and delay_input_list[0] <= delay_input_list[1]:
+                                user_config['Browser']['Delay'] = delay_input_list
+                                return user_config
+        case _:
+            print("未动工或输入错误")
+    print("输入错误")
+    return False
+
+def get_github(url: str) -> dict | None:
+    headers = {
+        "Accept": "application/vnd.github.v3+raw",
+        "user-agent": "ozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+    }
+    response = requests.get(url, headers=headers, timeout=6)
+    if response.status_code == 200:
+        json_data = response.json()
+        import base64
+        content_decoded = base64.b64decode(json_data['content']).decode('utf-8')
+        return json.loads(content_decoded)
+    else:
+        print(f"文件获取失败，状态码: {response.status_code}")
+        return None
 
 
 def global_exception_handler(exctype, value, tb):
@@ -49,76 +140,22 @@ def global_exception_handler(exctype, value, tb):
     sys.exit(1)
 
 
-def backup(user_manage: dict,
-           backup_config: dict,
-           auto: bool = False) -> dict | bool:
-    """
-    备份UserConfig.json和用户下的所有小说的JSON
-    """
-    user = user_manage['USER']
-    backup_path_list = user_manage['USERS'][user]
-    # 获取备份目录
-    if auto:  # 隐式自动保存
-        set_dir = backup_config['Dir']
-    else:  # 显式保存
-        if backup_config.get("Pop_up_folder", False):  # 是否弹出文件夹选择框
-            root = tk.Tk()
-            root.withdraw()  # 隐藏主窗口
-            print("请在文件夹选择框选择文件夹：")
-            time.sleep(1)
-            set_dir = filedialog.askdirectory()  # 弹出选择文件夹对话框
-            root.destroy()
-        else:
-            set_dir = backup_config['Dir']
-
-    if not set_dir:  # 备份保存目录为空时
-        if not auto:
-            print("未指定目录，已退出")
-        return False
-    else:
-        # 防止目录不合理报错
-        try:
-            os.makedirs(set_dir, exist_ok=True)
-        except OSError as e:
-            print(e)
-            return False  # 跳过
-    # 获取备份名称并格式化
-    backup_name = backup_config.get("Name")
-    transform_list = re.findall(r'<.+?>', backup_name)
-    for index in transform_list:
-        # 替换为当前用户
-        if '<User>' == index:
-            backup_name = backup_name.replace(index, user, 1)
-        # 替换为当前时间
-        if index.startswith('<T:'):
-            time_format = re.search(r"<T:'(.+)'>", index).group(1)
-            time_str = time.strftime(time_format, time.localtime())
-            backup_name = backup_name.replace(index, time_str, 1)
-    # 备份保存路径
-    set_path = Path(set_dir) / backup_name
-    try:
-        with zipfile.ZipFile(set_path, 'w', zipfile.ZIP_STORED) as zipf:
-            for path in backup_path_list.keys():
-                # UserConfig,json加入zip
-                if 'User_config_path' == path:
-                    zipf.write(backup_path_list['User_config_path'], "UserConfig.json")
-                # 所有小说JSON加入zip
-                if "Base_dir" == path:
-                    for root, _, files in os.walk(backup_path_list[path]):
-                        for file in files:
-                            if file.endswith(".json"):
-                                json_path = Path(root) / file
-                                zipf.write(json_path, os.path.join('json', file))
-
-        backup_config['Last_time'] = time.time()
-        return backup_config
-    except Exception as e:
-        print(f"无法备份,原因：{e}")
-        return False
+def backup(backup_dict, backup_dir):
+    backup_path = os.path.join(backup_dir, f"Novel_backup{datetime.now().strftime('%Y-%m-%d')}.zip")
+    with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_STORED) as zipf:
+        for path in backup_dict.keys():
+            if 'User_config_path' == path:
+                zipf.write(backup_dict['User_config_path'], "UserConfig.json")
+            if "Base_dir" == path:
+                for root, _, files in os.walk(backup_dict[path]):
+                    for file in files:
+                        if file.endswith(".json"):
+                            json_path = (os.path.join(backup_dict["Base_dir"], file))
+                            zipf.write(str(json_path), os.path.join('json', file))
+    return backup_path
 
 
-def range_split(deal_range: str,
-                total_list: int | None) -> list[int]:
+def range_split(deal_range, total_list):
     """
     处理范围字符串，将其转换为索引列表。
     """
@@ -217,7 +254,7 @@ class NovelDownloader:
         if 'https://changdunovel.com/wap/' in url:  # 处理番茄小说的分享链接
             book_id = re.search(r"book_id=(\d+)", url).group(1)
             url = 'https://fanqienovel.com/page/' + book_id
-        if "https://magev6.if.qidian.com/h5/share" in url:
+        if "https://magev6.if.qidian.com/h5/share" in url:  # 处理起点小说的分享链接
             book_id = re.search(r"bookld=(\d+)", url).group(1)
             url = 'https://www.qidian.com/book/' + book_id
         if 'fanqienovel.com' in url:
@@ -261,6 +298,14 @@ class NovelDownloader:
         return True
 
     def download_novel(self):
+        # 获取被中断的链接
+        unprocess = []
+        if self.Class_Config.User_config.get('Unprocess',{}) is not None:
+            unprocess = set(self.Class_Config.User_config['Unprocess'])
+            unprocess.add(self.download_url)  # 防重复的添加
+            unprocess = list(unprocess)  # 符合格式的保存
+            self.Class_Config.User_config['Unprocess'] = unprocess
+            self.Class_Config.save_config(1)
         with tqdm(total=len(self.Class_Novel.down_title_list),
                   desc=self.Class_Novel.novel['info']['name']) as self.down_progress:
             try:
@@ -270,41 +315,38 @@ class NovelDownloader:
                     pass
             except KeyboardInterrupt:
                 print("已退出..")
+        if self.Class_Config.User_config.get('Unprocess') is not None:
+            if self.download_url in unprocess:
+                unprocess.remove(self.download_url)
+                self.Class_Config.User_config['Unprocess'] = unprocess
+                self.Class_Config.save_config(1)
 
     def func(self):
-        backup_config = self.Class_Config.User_config.get('Backup', {})
-        if backup_config.get("Auto", False):
-            last_backup_time = backup_config.get("Last_time", 0)
-            now_time = time.time()
-            if now_time - last_backup_time > 86400:
-                backup_dir = backup_config.get("dir")
-                backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
-                backup_path = backup(backup_dict, backup_dir)
-                print(f"已自动保存成功,已保存在 {backup_path}")
 
         while True:
-            # 自动备份
-            try:  # 懒得测新功能所以就用try-except了
-                backup_config = self.Class_Config.User_config.get('Backup', {})
-                if backup_config.get('Auto', False):
-                    auto_save_method = backup_config.get('Auto_save_method', '')
-                    if auto_save_method.startswith('T:'):
-                        time_interval = re.search(r"(\d+)", auto_save_method).group(1)
-                        if time_interval:
-                            now_time = time.time()
-                            last_backup_time = backup_config.get('Last_time', -1)
-                            if now_time - last_backup_time > time_interval:
-                                new_backup_config = backup(self.Class_Config.User_manage, backup_config, auto=True)
-                                self.Class_Config.User_config["Backup"] = new_backup_config
-                                self.Class_Config.save_config(1)
-                        else:
-                            print(f"{Fore.YELLOW}注意：保存方式（以时间保存）指定的时间间隔格式不正确，请检查其设置")
-                # 重新加载默认Config
-                self.Class_Config.load()
-                Check.main()
-            except Exception as e:
-                print(e)
-                pass
+            # 重新加载默认Config
+            self.Class_Config.load()
+            current_version = self.Class_Config.User_config['Version']
+            if current_version != VERSION:
+                temp = Check.update(current_version, copy.deepcopy(self.Class_Config.User_config))
+                if temp:
+                    self.Class_Config.User_config = temp
+                    self.Class_Config.save_config(1)
+            backup_item = self.Class_Config.User_config.get('Backup')
+            if backup_item.get("Auto", False):
+                last_backup_time = backup_item.get("Last_time", 0)
+                now_time = time.time()
+                if now_time - last_backup_time > 86400:
+                    backup_dir = backup_item.get("dir")
+                    backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
+                    backup_path = backup(backup_dict, backup_dir)
+                    now_time = time.time()
+                    new_backup_item = {
+                        "Last_time": now_time
+                    }
+                    self.Class_Config.User_config['Backup'].update(new_backup_item)
+                    self.Class_Config.save_config(1)
+                    print(f"已自动保存成功,已保存在 {backup_path}")
             try:
                 saved_mems = self.Class_Config.mems
                 urls_para = []
@@ -421,43 +463,172 @@ class NovelDownloader:
 建议直接通过JSON文件修改配置，这样更快更灵活.（若精通）
 """
                     case "5":
-                        print("pass")
+                        choice = input(
+                            """
+1.账户操作：
+2.分组内操作：
+3.默认参数修改：
+""")
+                        match choice:
+                            case '1':
+                                users = list(self.Class_Config.User_manage['USERS'].keys())
+                                print()
+                                for user_idx in range(1, len(users) + 1):
+                                    print(f"{Fore.BLUE}{user_idx}.{users[user_idx - 1]}")
+                                print(f"\n当前账户:{Fore.LIGHTBLUE_EX}{self.Class_Config.USER}")
+                                print("如果退出请按r键")
+                                choice = input("1.账户切换    2.账户创建    3.账户删除").strip()
+                                match choice:
+                                    case "1":
+                                        print("请选择账户(数字):")
+                                        while True:
+                                            option = input().strip()
+                                            if not option or 'r' in option.lower():
+                                                print("已退出..")
+                                                break
+                                            if re.match(r"\d+", option.strip()):
+                                                option = int(option)
+                                                self.Class_Config.User_manage["USER"] = users[option - 1]
+                                                self.Class_Config.save_config(2)
+                                                self.Class_Config.load()
+                                                print(f"账户切换成功({self.Class_Config.USER})")
+                                                break
+                                            else:
+                                                print("请重新输入:")
+                                                continue
+
+                                    case "2":
+                                        while True:
+                                            user_input = input("请输入账户名(前后不允许空格):").strip()
+                                            if not user_input or 'r' in user_input.lower():
+                                                print("不创建账户，已退出..")
+                                                break
+                                            if user_input in users:
+                                                print("账户已存在，请重新创建..")
+                                                continue
+                                            else:
+                                                if template_userconfig is None or template_mems is None:
+                                                    print("无法创建")
+                                                else:
+                                                    if self.Class_Config.set_new_user(user_input, template_userconfig,
+                                                                                      template_mems):
+                                                        print(f"账户已创建成功({self.Class_Config.USER})")
+                                                break
+
+                                    case "3":
+                                        option = input("请选择需删除的账户(数字):").strip()
+                                        if not option or 'r' in option.lower():
+                                            print("已退出..")
+                                        if re.match(r"\d+", option.strip()):
+                                            option = int(option)
+                                            del_user = self.Class_Config.User_manage["USERS"].pop(option - 1)
+                                            if del_user == self.Class_Config.USER:  # 当删除的是当前账户
+                                                self.Class_Config.User_manage["USER"] = users[0]
+                                            self.Class_Config.save_config(2)
+                                            self.Class_Config.load()
+                                            print(f"账户 {del_user} 已删除成功({self.Class_Config.USER})")
+
+                            case '2':
+                                groups = list(self.Class_Config.mems.keys())
+                                # 输出所有Group
+                                for group_idx in range(1, len(groups) + 1):
+                                    print(f"{group_idx}.{groups[group_idx - 1]}")
+                                print(f"当前分组:{self.Class_Config.GROUP}")
+                                print("如果退出请按r键")
+                                option = input("1.分组切换    2.分组创建    3.分组删除").strip()
+                                match option:
+                                    case "1":
+                                        print("请选择分组(数字):")
+                                        while True:
+                                            option = input().strip()
+                                            if not option or 'r' in option.lower():
+                                                print("已退出..")
+                                                break
+                                            # 符合选择规范
+                                            if re.match(r"\d+", option.strip()):
+                                                option = int(option)
+                                                self.Class_Config.User_config['Group'] = groups[option - 1]
+                                                self.Class_Config.save_config(1)  # 保存为UserConfig.json
+                                                self.Class_Config.load()  # 重新加载
+                                                print(f"分组切换成功({self.Class_Config.GROUP})")
+                                                break
+                                            else:
+                                                print("请重新输入:")
+                                                continue
+
+                                    case "2":
+                                        while True:
+                                            group_input = input("请输入分组名(前后不允许空格):").strip()
+                                            if not group_input or 'r' in group_input.lower():
+                                                print("不创建分组，已退出..")
+                                                break
+                                            if group_input in groups:
+                                                print("分组已存在，请重新创建..")
+                                                continue
+                                            else:
+                                                self.Class_Config.User_config["Group"] = group_input
+                                                self.Class_Config.mems[group_input] = {}  # 新建一个group
+                                                self.Class_Config.save_config(0)  # 保存mems.json
+                                                self.Class_Config.save_config(1)  # 保存UserConfig.json
+                                                self.Class_Config.load()  # 重新加载
+                                                print(f"分组已创建成功({self.Class_Config.GROUP})")
+                                                break
+
+                                    case "3":
+                                        print("请选择需删除的分组(数字):", end="")
+                                        option = input().strip()
+                                        if not option or 'r' in option.lower():
+                                            print("已退出..")
+                                        if re.match(r"\d+", option.strip()):
+                                            option = int(option)
+                                            del_group = groups[option - 1]
+                                            self.Class_Config.mems.pop(del_group)
+                                            # 如果删除的是当前的GROUP
+                                            if del_group == self.Class_Config.GROUP:
+                                                self.Class_Config.User_config['Group'] = groups[0]
+                                            self.Class_Config.save_config(0)  # 保存mems.json
+                                            self.Class_Config.save_config(1)  # 保存UserConfig.json
+                                            self.Class_Config.load()  # 重新加载
+                                            print(f"分组 {del_group} 已删除成功({self.Class_Config.GROUP})")
+                                        else:
+                                            print("请正确输入")
+                                            continue
+
+                            case '3':
+                                option = input(
+                                    '''1.获取模式
+2.Chrome设置
+3.API设置
+4.Requests设置
+5.保存方式设置
+6.保存设置'''
+                                )
+                                temp = setting(option, self.Class_Config.User_config)
+                                if temp:
+                                    self.Class_Config.User_config = temp
+                                    self.Class_Config.save_config(1)    # 保存
                     case "6":
-                        # 获取Base的路径 和 User_config.json的路径
-                        user_manage = self.Class_Config.User_manage
-                        # 备份配置
-                        backup_config = self.Class_Config.User_config.get("Backup")
-                        # 默认备份配置
-                        default_backup_item = {
-                            "Auto": False,
-                            "Auto_save_method": "T:86400",
-                            "Dir": "C:\\\\",
-                            "Name": "Novel_backup <User><T:'%Y-%m-%d'>.zip",
-                            "Last_time": -1,
-                            "Pop_up_folder": True
-                        }
-
-                        if backup_config is None:
-                            cho = input('''检测到UserConfig没有保存配置，是否添加？ (y/n)\n
-配置添加：
-1.自动保存(false) 
-2.自动保存方式(每隔86400秒自动保存) 
-3.保存路径(C:\\\\) 
-4.备份名字：Novel_backup <User><T:'%Y-%m-%d'>.zip 
-5.上一次保存时间(-1) 
-5.显式备份自动弹出文件夹选择对话框(true)
-                                        ''')
-
-                            if cho.lower() == 'y':
-                                self.Class_Config.User_config["Backup"] = default_backup_item
-                                backup_config = default_backup_item
-                                self.Class_Config.save_config(1)
+                        backup_item = self.Class_Config.User_config.get("Backup", {})
+                        backup_dir = backup_item.get("dir")
+                        backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
+                        if backup_dir is None:
+                            set_path = input("请指定保存目录：")
+                            if not set_path or 'r' in set_path.lower():
+                                print("未指定目录，已退出")
                             else:
-                                backup_config = default_backup_item  # 使用默认备份方式
-
-                        new_backup_config = backup(backup_config, user_manage, auto=False)
-                        self.Class_Config.User_config["Backup"] = new_backup_config
-                        self.Class_Config.save_config(1)
+                                try:
+                                    os.makedirs(set_path, exist_ok=True)
+                                except (OSError, FileNotFoundError) as e:
+                                    print(e)
+                                    continue
+                                self.Class_Config.User_config["Backup_path"] = set_path
+                                self.Class_Config.save_config(1)
+                                backup_path = backup(backup_dict, backup_dir)
+                                print(f"保存成功,已保存在 {backup_path}")
+                        else:
+                            """打包成无压缩的zip文件，便于移动"""
+                            backup_path = backup(backup_dict, backup_dir)
+                            print(f"保存成功,已保存在 {backup_path}")
 
             except ValueError as e:
                 if str(e).startswith("NovelDownloader:"):
@@ -470,13 +641,10 @@ class NovelDownloader:
                     sys.exit(0)
                 else:
                     continue
-            except Exception as e:
-                print(e)
         return True
 
     def __init__(self, logger_):
 
-        Check.main()
         self.logger = logger_
         self.select = None
         self.download_url = None
@@ -527,6 +695,49 @@ print(f"""
 作者：Canyang2008
 项目地址：https://github.com/canyang2008/NovelDownloader
 检查配置中……{Fore.YELLOW}注：格式化操作是删除data/Local文件夹再次运行即可\n\n""")
+
+print("正在获取默认配置文件中")
+# 直接从GitHub获取，保证是最新的
+print(f"{Fore.BLUE}尝试获取 UserConfig.json 和 mems.json (12s)")
+# 读取 UserConfig.json
+api_url_for_userconfig = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/UserConfig.json"
+try:
+    template_userconfig = get_github(api_url_for_userconfig)
+    print(f"{Fore.GREEN} UserConfig.json 获取成功")
+except requests.exceptions.RequestException as e:
+    print(f" UserConfig.json 获取失败，原因: {e}")
+    print("无法为创建新用户提供最新模板")
+# 读取 mems.json
+api_url_for_mems = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/mems.json"
+try:
+    template_mems = get_github(api_url_for_mems)
+    print(f"{Fore.GREEN} mems.json 获取成功")
+except requests.exceptions.RequestException as e:
+    print(f" mems.json 获取失败，原因: {e}")
+    print("无法为创建新用户提供最新分组模板")
+
+if template_userconfig is None:
+    if os.path.exists("data/Demo/UserConfig.json"):
+        print("尝试读取data/Demo/UserConfig.json中")
+        try:
+            with open(f"data/Demo/UserConfig.json", "r", encoding="utf-8") as f:
+                template_userconfig = json.load(f)
+        except json.decoder.JSONDecodeError as e:
+            print(f" UserConfig.json 损坏，原因：{e}")
+    else:
+        print("data/Demo/UserConfig.json不存在, 无法创建新用户")
+
+if template_userconfig is None:
+    if os.path.exists("data/Demo/mems.json"):
+        print("尝试读取data/Demo/mems.json中")
+        try:
+            with open(f"data/Demo/mems.json", "r", encoding="utf-8") as f:
+                template_mems = json.load(f)
+        except json.decoder.JSONDecodeError as e:
+            print(f" mems.json 损坏，原因：{e}")
+    else:
+        print("data/Demo/mems.json不存在, 无法创建新用户")
+Check.main(template_userconfig, template_mems)
 sys.excepthook = global_exception_handler  # 设置全局异常处理器
 downloader = NovelDownloader(logger)
 downloader.func()  # 功能

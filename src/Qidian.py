@@ -14,7 +14,6 @@ class Qidian:
     def __init__(self, logger_, class_config, class_driver):
 
         self.logger = logger_
-        self.img_items = {}
         self.down_url_list = []
         self.down_title_list = []
         self.pro_url = ''
@@ -44,13 +43,13 @@ class Qidian:
         if "book" in url:
             class_name = "#bookCatalogSection"
         elif "chapter" in url:
-            class_name = ".content-text"
+            class_name = ".relative"
         else:
             class_name = None
         try:
             self.Class_Driver.tab.get(url)
             time.sleep(random.uniform(self.Class_Config.Delay[0], self.Class_Config.Delay[1]))
-            if not self.Class_Driver.tab.states.is_alive: raise BaseError   # 浏览器被关闭
+            if not self.Class_Driver.tab.states.is_alive: raise BaseError  # 浏览器被关闭
             self.Class_Driver.tab.wait.eles_loaded(
                 class_name, raise_err=True)  # 起点目录页、起点章节内容页（class）
             html = self.Class_Driver.tab.raw_data
@@ -87,7 +86,7 @@ class Qidian:
             return False
         # 获取网页内容
         name = soup.find('h1', id='bookName').get_text()
-        if soup.find('div', class_='author-information'):       # 判断是否为起点特殊页面，以作者图片是否显示为准
+        if soup.find('div', class_='author-information'):  # 判断是否为起点特殊页面，以作者图片是否显示为准
             author = soup.find('a', class_='writer-name').get_text()
             author_desc = soup.find('div', class_='outer-intro').find('p').get_text()
             attribute = soup.find('p', class_='book-attribute').text
@@ -117,7 +116,6 @@ class Qidian:
         self.novel['info']['abstract'] = abstract
         self.novel['info']['book_cover_data'] = "data:image/png;base64," + book_cover_data
         self.novel['info']['url'] = url
-        self.img_items['封面图片'] = {name: self.novel['info']['book_cover_data']}
         # 获取章节列表
         self.all_title_list = [title.find('a').get_text() for title in web_chapter_list]
         self.all_url_list = ['https:' + title.find('a').get('href') for title in web_chapter_list]
@@ -133,10 +131,9 @@ class Qidian:
                                                                   class_='group inline-flex items-center mr-16px')[
             -1].get_text().split()[-1]
         update_time = soup.find('span', class_='chapter-date').get_text()
-        novel_content = soup.find_all('span', class_='content-text')
+        novel_content = soup.find('main')
         novel_content = '\n'.join([i.get_text() for i in novel_content])
-        if soup.find('section',
-                     class_='sm:border-t sm:border-outline-black-8 sm:pt-48px sm:my-64px sm:mx-64px mb-24px text-center mx-20px'):
+        if soup.find('div',class_='mt-16px'):
             integrity = False
         else:
             integrity = True

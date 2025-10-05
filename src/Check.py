@@ -1,6 +1,5 @@
-import json
 import os
-
+import json
 from colorama import Fore
 
 
@@ -8,7 +7,43 @@ class Check:
     def __init__(self): pass
 
 
-def init():
+# 插入字典到JSON指定位置
+def insert_into_dict(original_dict, new_dict, after_key):
+    result = {}
+    for key, value in original_dict.items():
+        result[key] = value
+        if key == after_key:
+            result.update(new_dict)
+    return result
+
+
+def main(template_userconfig, template_mems):
+    # 格式化
+    if not os.path.exists("data/Local"):
+        print(f"{Fore.YELLOW}重置中")
+        init(template_userconfig, template_mems)
+
+
+def update(version: str, user_config: dict) -> dict | None:
+    match version:
+        case '1.1.0':
+            choice = input("检测到用户配置文件为低版本，是否更新？(y/n)")
+            if choice == 'y':
+                user_config['README'] = "This is the JSON template configured by the user, which is the most important template file for creating new users. Please do not modify it arbitrarily",
+                save_method = user_config['Save_method']
+                for file_format in save_method.keys():
+                    if isinstance(save_method[file_format], dict):
+                        save_method[file_format]['enable'] = True
+                user_config['Browser']['Path'] = ''
+                user_config['Version'] = '1.1.4'
+                return update('1.1.4', user_config)
+            else:
+                return None
+        case _:
+            return user_config
+
+
+def init(template_userconfig, template_mems):
     os.makedirs("data/Local", exist_ok=True)
 
     init_manage = {
@@ -26,75 +61,14 @@ def init():
     with open(f"data/Local/manage.json", "w", encoding="utf-8") as f:
         json.dump(init_manage, f, ensure_ascii=False, indent=4)
 
-    init_userconfig = {
-        "Version": "1.1.0",
-        "User_name": "Default",
-        "Group": "Default",
-        "README": "",
-        "Play_completion_sound": False,
-        "Get_mode": 0,
-        "Browser": {
-            "State": {
-                "Fanqie": -1,
-                "Qidian": 0,
-                "Bqg128": 0
-            },
-            "Timeout": 10,
-            "Max_retry": 3,
-            "Interval": 2,
-            "Delay": [
-                1,
-                1.5
-            ],
-            "Port": 9445,
-            "Headless": False
-        },
-        "Api": {
-            "Fanqie": {
-                "Option": "oiapi",
-                "oiapi": {
-                    "Max_retry": 3,
-                    "Timeout": 10,
-                    "Interval": 2,
-                    "Delay": [
-                        1,
-                        3
-                    ],
-                    "Key": ""
-                }
-            }
-        },
-        "Save_method": {
-            "json": {
-                "name": "name_default",
-                "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-                "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
-            },
-            "txt": {
-                "name": "name_default",
-                "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-                "gap": 0,
-                "max_filesize": -1
-            },
-            "html": {
-                "name": "name_default",
-                "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-                "one_file": True
-            }
-        },
-        "Unprocess": []
-    }
+    init_userconfig = template_userconfig
 
     os.makedirs(f"data/Local/Default", exist_ok=True)
     with open(f"data/Local/Default/UserConfig.json", "w", encoding="utf-8") as f:
         json.dump(init_userconfig, f, ensure_ascii=False, indent=4)
     os.makedirs(f"data/Local/Default/User Data", exist_ok=True)
     os.makedirs(f"data/Local/Default/json", exist_ok=True)
-    init_mems = {
-        "Version": "1.1.0",
-        "Default": {
-        }
-    }
+    init_mems = template_mems
     with open(f"data/Local/Default/json/mems.json", "w", encoding="utf-8") as f:
         json.dump(init_mems, f, ensure_ascii=False, indent=4)
 
@@ -1806,28 +1780,3 @@ def init():
     with open("data/Local/template.html", 'w', encoding='utf-8') as f:
         f.write(template)
     open("data/Local/urls.txt", 'w', encoding='utf-8').close()
-
-
-# 插入字典到JSON指定位置
-def insert_into_dict(original_dict, new_dict, after_key):
-    result = {}
-    for key, value in original_dict.items():
-        result[key] = value
-        if key == after_key:
-            result.update(new_dict)
-    return result
-
-
-def main():
-    # 旧版切换
-    if os.path.exists("data/Record/UrlConfig.json"):
-        import transform
-        transform.init()
-
-    # 格式化
-    if not os.path.exists("data/Local"):
-        print(f"{Fore.YELLOW}重置中")
-        init()
-
-
-main()

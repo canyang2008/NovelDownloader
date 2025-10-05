@@ -152,7 +152,7 @@
 
   **参数介绍**
 
-  - `Play_completion_sound` -> `bool`: 下载完成后是否播放提示音（未应用）
+  - `Play_completion_sound` -> `bool`: 下载完成后是否播放提示音
   - `Get_mode` -> `int`: 获取模式
     - 0: Chrome浏览器模式
     - 1: API模式（仅番茄）

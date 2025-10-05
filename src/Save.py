@@ -178,13 +178,17 @@ class Save:
         for file_format in self.Class_Config.Save_method.keys():
             match file_format:
                 case 'json':
-                    self._json_save()
+                    if self.save_config[file_format].get('enable', True):
+                        self._json_save()
                 case 'txt':
-                    self._txt_save()
+                    if self.save_config[file_format].get('enable', True):
+                        self._txt_save()
                 case 'epub':
-                    self._epub_save()
+                    if self.save_config[file_format].get('enable', True):
+                        self._epub_save()
                 case 'html':
-                    self._html_save()
+                    if self.save_config[file_format].get('enable', True):
+                        self._html_save()
 
     def _json_save(self):
 
