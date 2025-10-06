@@ -12,23 +12,40 @@
 
 ## 更新记录
 
+- ### 2025/10.06
+
+  **版本：NovelDownloader-1.1.5**
+
+  **说明**
+  - `UserConfig.json`字段`Unprocess`类型还是不改了
+  - 备份功能原本是好的，但是好像上传错版本了，导致无法正常使用  
+  
+  **添加**
+
+  - 比较完整的设置功能
+  - 可以通过外部调用程序直接下载(内部暂不支持)  
+    支持的参数：
+    - `--url`: str
+    - `--update`: bool = True
+    - `--range`: str | None = None
+
 - ### 2025/10/05
   
   **版本：NovelDownloader-1.1.4**
   
   **说明**
-  - *我食言了，配置文件结构还真有不得不更改的理由，不是大幅度更改。不会影响整体使用*
+  
   - NovelDownloader-1.3.0将会融合添加(回归)`SettingConfig.json`和`UrlConfig.json`配置文件，可以将所有配置统一集中在此  
   - 如果下载小说时卡在提示Key不能为空时，可以通过 设置 -> 获取模式 ->切换为 Chrome模式
   
   **修改**
+  
   - 起点 支持下载VIP可直接获取章节
   - 完善备份功能(临时)
   - 配置文件：
     - `UserConfig.json`：  
       - 字段`Unprocess`类型将在下版本转换成字典以添加更多的备份功能  
       - 字段`Save_method`添加`enable`，是否以某格式保存  
-
 
   **添加**
   
@@ -43,7 +60,6 @@
 
   **说明**
 
-  账户/分组操作是通过修改JSON实现，NovelDownloader-1.1.3及以上已删除  
   原本NovelDownloader-1.1.2的`requests`请求的参数会通过创建用户的新`UserConfig.json`内没有添加在内
 
   **添加**
