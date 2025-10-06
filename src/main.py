@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import copy
-
-VERSION = '1.1.4'
 import faulthandler
 import json
 import logging
@@ -13,6 +11,9 @@ import traceback
 import zipfile
 from datetime import datetime
 from pathlib import Path
+
+from tkinter import filedialog
+import tkinter as tk
 import Check
 import requests
 from colorama import init, Fore
@@ -27,19 +28,53 @@ from SetConfig import SetConfig
 
 faulthandler.enable()
 init(autoreset=True)
+LASTEST_USERCONFIG_VERSION = '1.1.5'    # 最后一次版本配置更新
 template_userconfig = None
 template_mems = None
-"""当前版本暂未完全测试，但是下载和更新功能(Chrome模式)可以使用"""
 
 
-def setting(option:str, user_config:dict) -> dict | bool:
+def mode_config_modify(choice: str, mode_user_config: dict) -> dict | bool:
+    if re.match('^[1-6]$', choice.strip()):
+        choice = int(choice)
+        match choice:
+            case 1:
+                timeout_input = input("请输入超时时间")
+                if re.match('^\d+$', timeout_input.strip()):
+                    mode_user_config['Timeout'] = int(timeout_input)
+                    return mode_user_config
+            case 2:
+                max_retry_input = input("请输入最大重试次数")
+                if re.match('^\d+$', max_retry_input.strip()):
+                    mode_user_config['Max_retry'] = int(max_retry_input)
+                    return mode_user_config
+            case 3:
+                interval_input = input("请输入最大重试间隔")
+                if re.match('^\d+$', interval_input.strip()):
+                    mode_user_config['Interval'] = int(interval_input)
+                    return mode_user_config
+            case 4:
+                delay_input = input("请输入上限 下限，用空格隔开")
+                if not re.match('^(\d+) (\d+)$', delay_input.strip()):
+                    return False
+                delay_input_list = delay_input.split()
+                new_delay = []
+                if len(delay_input_list) == 2 and int(delay_input_list[0]) <= int(delay_input_list[1]):
+                    new_delay[0] = int(delay_input_list[0])
+                    new_delay[1] = int(delay_input_list[1])
+                    mode_user_config['Delay'] = new_delay
+                    return mode_user_config
+    else:
+        print("输入错误")
+        return False
+
+
+def setting(option: str, user_config: dict) -> dict | bool:
     """设置配置
 1.获取模式
 2.Chrome设置
 3.API设置
 4.Requests设置
-5.保存方式设置
-6.保存设置"""
+5.保存方式设置"""
     match option:
         case '1':
             print("1.Chrome模式   2.API模式(仅番茄)     3.Requests模式(开发中)")
@@ -53,56 +88,285 @@ def setting(option:str, user_config:dict) -> dict | bool:
                     print("当前模式：Requests")
             mode_option = input("是否切换?(1|2|3/n)")
             if re.match('^[1-3]$', mode_option.strip()):
-                mode = int(mode_option)
+                mode = int(mode_option) - 1
                 user_config['Get_mode'] = mode
                 return user_config
-            elif mode_option == 'n':
-                print("已退出")
+
+        case '2':
+            mode_user_config = user_config['Browser']
+            timeout = mode_user_config["Timeout"]
+            max_retry = mode_user_config["Max_retry"]
+            interval = mode_user_config["Interval"]
+            delay = mode_user_config['Delay']
+            delay_str = f"上限：{delay[0]}s 下限：{delay[1]}s"
+            port = mode_user_config['Port']
+            headless = mode_user_config['Headless']
+            print(f'''
+1.超时时间(当前:{timeout}s)
+2.最大重试次数(当前:{max_retry})
+3.重试时间间隔(当前:{interval}s)
+4.延迟(当前:{delay_str})
+5.Chrome端口号(当前:{port})
+6.无头模式(当前:{headless})'''
+                  )
+            choice = input("请选择修改或退出(n)")
+            if re.match('^[1-4]$', choice.strip()):
+                mode_user_config = mode_config_modify(choice, mode_user_config)
+                user_config['Browser'].update(mode_user_config)
+                return user_config
+            elif re.match('^[56]$', choice.strip()):
+                match choice:
+                    case '5':
+                        port = input("请输入端口号")
+                        if re.match('^\d+$', port.strip()):
+                            mode_user_config['Port'] = int(port)
+                            user_config['Browser'].update(mode_user_config)
+                            return user_config
+                    case '6':
+                        cho = input("是否启用无头模式(y/n)")
+                        if cho.strip() == 'y':
+                            headless = True
+                            mode_user_config['Headless'] = headless
+                            user_config['Browser'].update(mode_user_config)
+                            return user_config
+        case '3':
+            mode_user_config = user_config['Api']['Fanqie']['oiapi']
+            print("当前API:oiapi")
+            timeout = mode_user_config["Timeout"]
+            max_retry = mode_user_config["Max_retry"]
+            interval = mode_user_config["Interval"]
+            delay = mode_user_config['Delay']
+            delay_str = f"上限：{delay[0]}s 下限：{delay[1]}s"
+            api_key = mode_user_config['Key']
+            print(f'''
+1.超时时间(当前:{timeout}s)
+2.最大重试次数(当前:{max_retry})
+3.重试时间间隔(当前:{interval}s)
+4.延迟(当前:{delay_str})
+5.ApiKey(当前:{api_key})'''
+                  )
+            choice = input("请选择修改或退出(n)")
+            if re.match('^[1-4]$', choice.strip()):
+                mode_user_config = mode_config_modify(choice, mode_user_config)
+                user_config['Api']['Fanqie']['oiapi'].update(mode_user_config)
+                return user_config
+            elif choice.strip() == '5':
+                new_api_key = input("请输入ApiKey")
+                mode_user_config['Key'] = new_api_key
+                user_config['Api']['Fanqie']['oiapi'].update(mode_user_config)
+                return user_config
+            else:
+                pass
+        case '4':
+            platform_choice = input("""请输入平台：
+1.番茄
+2.起点
+3.笔趣阁
+
+""")
+            platform_list = ['Fanqie', "Qidian", "Biquge"]
+            if re.match('^[1-3]$', platform_choice.strip()):
+                platform = platform_list[int(platform_choice) - 1]
             else:
                 print("输入错误")
                 return False
-
-        case '2':
-            timeout = user_config['Browser']["Timeout"]
-            max_retry = user_config['Browser']["Max_retry"]
-            interval = user_config['Browser']["Interval"]
-            delay = user_config['Browser']['Delay']
-            port = user_config['Browser']['Port']
-            headless = user_config['Browser']['Headless']
+            mode_user_config = user_config['Requests'][platform]
+            timeout = mode_user_config["Timeout"]
+            max_retry = mode_user_config["Max_retry"]
+            interval = mode_user_config["Interval"]
+            delay = mode_user_config['Delay']
             delay_str = f"上限：{delay[0]}s 下限：{delay[1]}s"
-            print(
-                f'1.超时时间(当前:{timeout}s)   2.最大重试次数(当前:{max_retry})    3.重试时间间隔(当前:{interval}s)    '
-                f'4.延迟(当前:{delay_str})    5.Chrome端口号(当前:{port})     6.无头模式(当前:{headless})')
+            cookie = mode_user_config['Cookie']
+            print("当前Requests配置:")
+            print(f'''
+1.超时时间(当前:{timeout}s)
+2.最大重试次数(当前:{max_retry})
+3.重试时间间隔(当前:{interval}s)
+4.延迟(当前:{delay_str})
+5.Cookie:(当前:{cookie})
+'''
+                  )
             choice = input("请选择修改或退出(n)")
-            if re.match('^[1-6]$', choice.strip()):
-                choice = int(choice)
-                match choice:
-                    case 1:
-                        timeout_input = input("请输入超时时间")
-                        if re.match('^[1-5]$', timeout_input.strip()):
-                            user_config['Browser']['Timeout'] = int(timeout_input)
-                            return user_config
-                    case 2:
-                        max_retry_input = input("请输入最大重试次数")
-                        if re.match('^[1-5]$', max_retry_input.strip()):
-                            user_config['Browser']['Max_retry'] = int(max_retry_input)
-                            return user_config
-                    case 3:
-                        interval_input = input("请输入最大重试次数")
-                        if re.match('^[1-5]$', interval_input.strip()):
-                            user_config['Browser']['Max_retry'] = int(interval_input)
-                            return user_config
-                    case 4:
-                        delay_input = input("请输入上限 下限，用空格隔开")
-                        if re.match('^(\d+) (\d+)$', delay_input.strip()):
-                            delay_input_list = delay_input.split()
-                            if len(delay_input_list) == 2 and delay_input_list[0] <= delay_input_list[1]:
-                                user_config['Browser']['Delay'] = delay_input_list
-                                return user_config
+            if re.match('^[1-4]$', choice.strip()):
+                mode_user_config = mode_config_modify(choice, mode_user_config)
+                user_config['Requests'][platform].update(mode_user_config)
+                return user_config
+            elif choice.strip() == '5':
+                new_cookie = input("请输入Cookie")
+                mode_user_config['Cookie'] = new_cookie
+                user_config['Requests'][platform].update(mode_user_config)
+                return user_config
+            """保存方式设置"""
+        case '5':
+            save_method = user_config['Save_method']
+            print()
+            total = 0
+            for index in range(len(list(save_method.keys()))):
+                print(f"{index + 1}:{list(save_method.keys())[index]}")
+                total += 1
+            choice = input("\n请选择文件格式:")
+            if re.match('^\d$', choice.strip()):
+                file_format = list(save_method.keys())[int(choice) - 1]
+                match file_format:
+                    case 'json':
+                        file_method = save_method[file_format]
+                        enable = file_method.get('enable', True)
+                        name = file_method.get('name', "name_default")
+                        name_str = name if name != "name_default" else "以小说名称保存"
+                        save_dir = file_method.get('dir', "data\Bookstore\<User>\<Group>\<Name>")
+                        img_save_dir = file_method.get("img_dir", "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img")
+                        print("当前json保存配置:\n")
+                        print(f"""
+1.是否以json保存(当前:{enable})
+2.文件名称(当前:{name_str})
+3.保存目录(当前：{save_dir})
+4.图片保存目录(当前:{img_save_dir})\n
+""")
+                        cho = input("请选择或退出(n)")
+                        match cho.strip():
+                            case '1':
+                                enable_choice = input("是否以json保存(y/n)")
+                                if enable_choice.strip() == 'y':
+                                    user_config['Save_method']['json']['enable'] = True
+                                    return user_config
+                                elif enable_choice.strip() == 'n':
+                                    user_config['Save_method']['json']['enable'] = False
+                                    return user_config
+                            case '2':
+                                new_name = input("请输入文件名称或退出(n)")
+                                if new_name.strip() == 'n':
+                                    pass
+                                else:
+                                    user_config['Save_method']['json']['name'] = new_name
+                                    return user_config
+                            case '3':
+                                print(
+                                    '特殊名称\n"<User>":替换为当前用户名称\n"<Group>":替换为当前用户\n"<Name>":替换为当前小说名称')
+                                new_dir = input("请输入目录或退出(n)(可输入特殊名称):")
+                                if new_dir.strip() == 'n':
+                                    pass
+                                else:
+                                    user_config['Save_method']['json']['dir'] = new_dir
+                                    return user_config
+                            case '4':
+                                print(
+                                    '特殊名称\n"<User>":替换为当前用户名称\n"<Group>":替换为当前用户\n"<Name>":替换为当前小说名称')
+                                new_img_dir = input("请输入图片保存目录或退出(n)(可输入特殊名称):")
+                                if new_img_dir.strip() == 'n':
+                                    pass
+                                else:
+                                    user_config['Save_method']['json']['img_dir'] = new_img_dir
+                                    return user_config
+
+                    case 'txt':
+                        file_method = save_method[file_format]
+                        enable = file_method.get('enable', True)
+                        name = file_method.get('name', "name_default")
+                        name_str = name if name != "name_default" else "以小说名称保存"
+                        save_dir = file_method.get('dir', "data\Bookstore\<User>\<Group>\<Name>")
+                        gap = file_method.get('gap', 0)
+                        max_filesize = file_method.get('max_filesize', -1)
+                        print("当前txt保存配置:\n")
+                        print(f"""
+1.是否以txt保存(当前:{enable})
+2.文件名称(当前:{name_str})
+3.保存目录(当前：{save_dir})
+4.分块(当前:{gap})
+5.最大文件大小(当前：{max_filesize})\n
+""")
+                        cho = input("请选择或退出(n)")
+                        match cho.strip():
+                            case '1':
+                                enable_choice = input("是否以txt保存(y/n)")
+                                if enable_choice.strip() == 'y':
+                                    user_config['Save_method']['txt']['enable'] = True
+                                    return user_config
+                                elif enable_choice.strip() == 'n':
+                                    user_config['Save_method']['txt']['enable'] = False
+                                    return user_config
+                            case '2':
+                                new_name = input("请输入文件名称或退出(n)")
+                                if new_name.strip() == 'n':
+                                    pass
+                                else:
+                                    user_config['Save_method']['txt']['name'] = new_name
+                                    return user_config
+                            case '3':
+                                print(
+                                    '特殊名称\n"<User>":替换为当前用户名称\n"<Group>":替换为当前用户\n"<Name>":替换为当前小说名称')
+                                new_dir = input("请输入目录或退出(n)(可输入特殊名称):")
+                                if new_dir.strip() == 'n':
+                                    pass
+                                else:
+                                    user_config['Save_method']['txt']['dir'] = new_dir
+                                    return user_config
+                            case '4':
+                                new_gap = input("请输入分块或退出(n):")
+                                if new_gap.strip() == 'n':
+                                    pass
+                                else:
+                                    if re.match('^\d+$', new_gap.strip()):
+                                        new_gap = int(new_gap)
+                                        if new_gap >= 0:
+                                            user_config['Save_method']['txt']['gap'] = new_gap
+                                            return user_config
+                                        else:
+                                            print("分块不能小于0")
+
+                    case 'html':
+                        file_method = save_method[file_format]
+                        enable = file_method.get('enable', True)
+                        name = file_method.get('name', "name_default")
+                        name_str = name if name != "name_default" else "以小说名称保存"
+                        save_dir = file_method.get('dir', "data\Bookstore\<User>\<Group>\<Name>")
+                        print("当前txt保存配置:\n")
+                        print(f"""
+1.是否以html保存(当前:{enable})
+2.文件名称(当前:{name_str})
+3.保存目录(当前：{save_dir})
+4.图片嵌入html\n
+""")
+                        cho = input("请选择或退出(n)")
+                        match cho.strip():
+                            case '1':
+                                enable_choice = input("是否以html保存(y/n)")
+                                if enable_choice.strip() == 'y':
+                                    user_config['Save_method']['html']['enable'] = True
+                                    return user_config
+                                elif enable_choice.strip() == 'n':
+                                    user_config['Save_method']['html']['enable'] = False
+                                    return user_config
+                            case '2':
+                                new_name = input("请输入文件名称或退出(n)")
+                                if new_name.strip() == 'n':
+                                    pass
+                                else:
+                                    user_config['Save_method']['html']['name'] = new_name
+                                    return user_config
+                            case '3':
+                                print(
+                                    '特殊名称\n"<User>":替换为当前用户名称\n"<Group>":替换为当前用户\n"<Name>":替换为当前小说名称')
+                                new_dir = input("请输入目录或退出(n)(可输入特殊名称):")
+                                if new_dir.strip() == 'n':
+                                    pass
+                                else:
+                                    user_config['Save_method']['html']['dir'] = new_dir
+                                    return user_config
+                            case '4':
+                                inner_choice = input("图片是否嵌入(y/n)")
+                                if inner_choice.strip() == 'y':
+                                    user_config['Save_method']['html']['one_file'] = True
+                                elif inner_choice.strip() == 'n':
+                                    user_config['Save_method']['html']['one_file'] = False
+                                else:
+                                    pass
+            else:
+                pass
         case _:
-            print("未动工或输入错误")
+            pass
     print("输入错误")
     return False
+
 
 def get_github(url: str) -> dict | None:
     headers = {
@@ -140,20 +404,43 @@ def global_exception_handler(exctype, value, tb):
     sys.exit(1)
 
 
-def backup(backup_dict, backup_dir):
-    backup_path = os.path.join(backup_dir, f"Novel_backup{datetime.now().strftime('%Y-%m-%d')}.zip")
+def backup(backup_config:dict, backup_item:dict, auto:bool = False) -> str | bool:
+    backup_dir = backup_config.get('Dir', "C:\\")
+    user = backup_item["USER"]
+    backup_name = backup_config.get('Name', "Novel_backup <User> <T:'%Y-%m-%d'>.zip")
+    backup_method_list = re.findall(r"<.+?>",backup_name)
+    for backup_method in backup_method_list:
+        if backup_method == '<User>':
+            backup_name = backup_name.replace(backup_method, user)
+        elif backup_method.startswith('<T:'):
+            time_format = re.search(r"'(.+)'>",backup_method).group(1)
+            if time_format:
+                time_str = time.strftime(time_format, time.localtime(time.time()))
+                backup_name = backup_name.replace(backup_method, time_str)
+    backup_path = Path(backup_dir) / backup_name
+    if not auto:
+        pop_up_folder = backup_config.get('Pop_up_folder', True)
+        if pop_up_folder:
+            root = tk.Tk()
+            root.withdraw()
+            backup_path = filedialog.asksaveasfilename(initialfile=backup_name, filetypes=[("zip文件",'.zip'),("所有文件",".*")])
+            root.destroy()
+            if not backup_path:
+                print("保存路径不能为空")
+                return False
+
+    backup_item = backup_item['USERS'][user]
     with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_STORED) as zipf:
-        for path in backup_dict.keys():
+        for path in backup_item.keys():
             if 'User_config_path' == path:
-                zipf.write(backup_dict['User_config_path'], "UserConfig.json")
+                zipf.write(backup_item['User_config_path'], "UserConfig.json")
             if "Base_dir" == path:
-                for root, _, files in os.walk(backup_dict[path]):
+                for root, _, files in os.walk(backup_item[path]):
                     for file in files:
                         if file.endswith(".json"):
-                            json_path = (os.path.join(backup_dict["Base_dir"], file))
+                            json_path = (os.path.join(backup_item["Base_dir"], file))
                             zipf.write(str(json_path), os.path.join('json', file))
     return backup_path
-
 
 def range_split(deal_range, total_list):
     """
@@ -233,8 +520,8 @@ class NovelDownloader:
         if not os.path.exists(json_path):
             print('json文件被移动或不存在')
         else:
-            with open(json_path, "r", encoding='utf-8') as f:
-                read_data = json.load(f)
+            with open(json_path, "r", encoding='utf-8') as novel_f:
+                read_data = json.load(novel_f)
                 self.Class_Novel.novel['chapters'] = read_data['chapters']  # 获取章节的同时更新小说信息
                 self.Class_Novel.novel['info']['name'] = read_data['info']['name']  # 防止小说名称改变而找不到根json
             # 需要更新的和不完整的链接及标题
@@ -266,7 +553,6 @@ class NovelDownloader:
         else:
             print('不支持该网站，请检查链接')
             raise ValueError(f"NovelDownloader:The website corresponding to this url does not support\nUrl: {url}")
-
         self.download_url = url  # 全局的url
         self.Class_Config.set_config(url)  # 通过url设置配置
         if self.Class_Config.Get_mode == 0:  # 选择以Chrome获取
@@ -300,7 +586,7 @@ class NovelDownloader:
     def download_novel(self):
         # 获取被中断的链接
         unprocess = []
-        if self.Class_Config.User_config.get('Unprocess',{}) is not None:
+        if self.Class_Config.User_config.get('Unprocess',[]) is not None:
             unprocess = set(self.Class_Config.User_config['Unprocess'])
             unprocess.add(self.download_url)  # 防重复的添加
             unprocess = list(unprocess)  # 符合格式的保存
@@ -315,38 +601,55 @@ class NovelDownloader:
                     pass
             except KeyboardInterrupt:
                 print("已退出..")
-        if self.Class_Config.User_config.get('Unprocess') is not None:
-            if self.download_url in unprocess:
-                unprocess.remove(self.download_url)
-                self.Class_Config.User_config['Unprocess'] = unprocess
-                self.Class_Config.save_config(1)
+        if self.download_url in unprocess:
+            unprocess.remove(self.download_url)
+            self.Class_Config.User_config['Unprocess'] = unprocess
+            self.Class_Config.save_config(1)
 
     def func(self):
 
         while True:
+
             # 重新加载默认Config
             self.Class_Config.load()
-            current_version = self.Class_Config.User_config['Version']
-            if current_version != VERSION:
+            # 中断重新下载
+            unprocess = self.Class_Config.User_config['Unprocess']
+            if unprocess:
+                print("发现未下载完成的链接")
+                for index in range(len(unprocess)):
+                    print(f"{index+1}.{unprocess[index]}")
+                choice = input("请选择或退出(n)")
+                if re.match(r"^\d+$",choice.strip()):
+                    self.Class_Config.Novel_update = True  # 标记为更新
+                    self.load_down_args(unprocess[int(choice) - 1])  # 配置
+                    self.download_novel()  # 下载
+                else:
+                    unprocess = []
+                    self.Class_Config.User_config['Unprocess'] = unprocess
+                    self.Class_Config.save_config(1)
+
+            current_version = self.Class_Config.User_config['Version']  # 当前用户配置文件
+            # 用户配置文件更新
+            if current_version != LASTEST_USERCONFIG_VERSION:
                 temp = Check.update(current_version, copy.deepcopy(self.Class_Config.User_config))
                 if temp:
                     self.Class_Config.User_config = temp
                     self.Class_Config.save_config(1)
-            backup_item = self.Class_Config.User_config.get('Backup')
-            if backup_item.get("Auto", False):
-                last_backup_time = backup_item.get("Last_time", 0)
-                now_time = time.time()
-                if now_time - last_backup_time > 86400:
-                    backup_dir = backup_item.get("dir")
-                    backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
-                    backup_path = backup(backup_dict, backup_dir)
+            # 备份
+            backup_config = self.Class_Config.User_config.get('Backup',{})
+            if backup_config.get("Auto",False):
+                backup_dict = self.Class_Config.User_manage
+                auto_save_method = backup_config.get('Auto_save_method', 'T:86400')
+                if auto_save_method.startswith('T:'):
+                    gap_time = int(auto_save_method[2:]) if re.match(r"\d+", auto_save_method[2:]) else 86400
+                    last_backup_time = backup_config.get("Last_time", 0)
                     now_time = time.time()
-                    new_backup_item = {
-                        "Last_time": now_time
-                    }
-                    self.Class_Config.User_config['Backup'].update(new_backup_item)
-                    self.Class_Config.save_config(1)
-                    print(f"已自动保存成功,已保存在 {backup_path}")
+                    if now_time - last_backup_time > gap_time:
+                        backup(backup_config, backup_dict,auto=True)
+                        now_time = time.time()
+                        self.Class_Config.User_config["Backup"]["Last_time"] = now_time
+                        self.Class_Config.save_config(1)
+
             try:
                 saved_mems = self.Class_Config.mems
                 urls_para = []
@@ -455,8 +758,8 @@ class NovelDownloader:
                         para = input('请输入小说链接:')
                         if not para:
                             continue
-                        novel_range = input('请输入章节范围(如1-3,5,7-9):')
-                        self.range = novel_range
+                        novel_range_ = input('请输入章节范围(如1-3,5,7-9):')
+                        self.range = novel_range_
                         self.download_url = self.load_down_args(self.download_url)
                         self.download_novel()
                         """
@@ -601,37 +904,21 @@ class NovelDownloader:
 3.API设置
 4.Requests设置
 5.保存方式设置
-6.保存设置'''
+'''
                                 )
                                 temp = setting(option, self.Class_Config.User_config)
                                 if temp:
                                     self.Class_Config.User_config = temp
-                                    self.Class_Config.save_config(1)    # 保存
+                                    self.Class_Config.save_config(1)  # 保存
                     case "6":
-                        backup_item = self.Class_Config.User_config.get("Backup", {})
-                        backup_dir = backup_item.get("dir")
-                        backup_dict = self.Class_Config.User_manage['USERS'][self.Class_Config.USER]
-                        if backup_dir is None:
-                            set_path = input("请指定保存目录：")
-                            if not set_path or 'r' in set_path.lower():
-                                print("未指定目录，已退出")
-                            else:
-                                try:
-                                    os.makedirs(set_path, exist_ok=True)
-                                except (OSError, FileNotFoundError) as e:
-                                    print(e)
-                                    continue
-                                self.Class_Config.User_config["Backup_path"] = set_path
-                                self.Class_Config.save_config(1)
-                                backup_path = backup(backup_dict, backup_dir)
-                                print(f"保存成功,已保存在 {backup_path}")
-                        else:
-                            """打包成无压缩的zip文件，便于移动"""
-                            backup_path = backup(backup_dict, backup_dir)
-                            print(f"保存成功,已保存在 {backup_path}")
+                        backup_config = self.Class_Config.User_config.get("Backup", {})
+                        backup_item = self.Class_Config.User_manage
+                        backup_path = backup(backup_config, backup_item)
+                        if backup_path:
+                            print(f"保存成功，已保存在 {backup_path}")
 
-            except ValueError as e:
-                if str(e).startswith("NovelDownloader:"):
+            except ValueError as error_e:
+                if str(error_e).startswith("NovelDownloader:"):
                     continue
                 else:
                     raise
@@ -665,22 +952,18 @@ class NovelDownloader:
 # 作者：太多需要记录的日志了，有一点死了……
 logger = logging.getLogger("auto_logger")
 logger.setLevel(logging.DEBUG)
-
 # 创建日志目录
 log_dir = os.path.join(os.getenv("Temp"), "logs")
 os.makedirs(log_dir, exist_ok=True)
-
 # 文件处理器 - 按日期分割日志
 file_handler = logging.FileHandler(
     filename=f"{log_dir}/{datetime.now().strftime('%Y-%m-%d')}.log",
     encoding='utf-8'
 )
 file_handler.setLevel(logging.INFO)
-
 # 控制台处理器
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
-
 # 日志格式
 formatter = logging.Formatter(
     "[%(asctime)s] [%(levelname)-8s] [%(funcName)-20s] %(message)s",
@@ -688,56 +971,85 @@ formatter = logging.Formatter(
 )
 file_handler.setFormatter(formatter)
 console_handler.setFormatter(formatter)
-
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
-print(f"""
-作者：Canyang2008
-项目地址：https://github.com/canyang2008/NovelDownloader
-检查配置中……{Fore.YELLOW}注：格式化操作是删除data/Local文件夹再次运行即可\n\n""")
 
-print("正在获取默认配置文件中")
-# 直接从GitHub获取，保证是最新的
-print(f"{Fore.BLUE}尝试获取 UserConfig.json 和 mems.json (12s)")
-# 读取 UserConfig.json
-api_url_for_userconfig = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/UserConfig.json"
-try:
-    template_userconfig = get_github(api_url_for_userconfig)
-    print(f"{Fore.GREEN} UserConfig.json 获取成功")
-except requests.exceptions.RequestException as e:
-    print(f" UserConfig.json 获取失败，原因: {e}")
-    print("无法为创建新用户提供最新模板")
-# 读取 mems.json
-api_url_for_mems = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/mems.json"
-try:
-    template_mems = get_github(api_url_for_mems)
-    print(f"{Fore.GREEN} mems.json 获取成功")
-except requests.exceptions.RequestException as e:
-    print(f" mems.json 获取失败，原因: {e}")
-    print("无法为创建新用户提供最新分组模板")
-
-if template_userconfig is None:
-    if os.path.exists("data/Demo/UserConfig.json"):
-        print("尝试读取data/Demo/UserConfig.json中")
-        try:
-            with open(f"data/Demo/UserConfig.json", "r", encoding="utf-8") as f:
-                template_userconfig = json.load(f)
-        except json.decoder.JSONDecodeError as e:
-            print(f" UserConfig.json 损坏，原因：{e}")
-    else:
-        print("data/Demo/UserConfig.json不存在, 无法创建新用户")
-
-if template_userconfig is None:
-    if os.path.exists("data/Demo/mems.json"):
-        print("尝试读取data/Demo/mems.json中")
-        try:
-            with open(f"data/Demo/mems.json", "r", encoding="utf-8") as f:
-                template_mems = json.load(f)
-        except json.decoder.JSONDecodeError as e:
-            print(f" mems.json 损坏，原因：{e}")
-    else:
-        print("data/Demo/mems.json不存在, 无法创建新用户")
-Check.main(template_userconfig, template_mems)
-sys.excepthook = global_exception_handler  # 设置全局异常处理器
 downloader = NovelDownloader(logger)
-downloader.func()  # 功能
+downloader.Class_Config.load()
+if __name__ == "__main__":
+    args = sys.argv
+    if len(args) > 2:
+        downloader = NovelDownloader(logger)
+        download_url = None
+        novel_update = True
+        novel_range = None
+        for arg in args[1:]:
+            if arg.startswith("--url="):
+                download_url = arg[len("--url="):].split("?")[0]
+            elif arg.startswith("--update="):
+                novel_update = arg[len("--update="):].split("?")[0]
+                if novel_update.lower().startswith('f'):
+                    novel_update = False
+            elif arg.startswith("--range="):
+                novel_range = arg[len("--range="):].split("?")[0]
+                downloader.range = novel_range
+        if download_url is None:
+            print("请指定url")
+            exit(1)
+        else:
+            downloader.Class_Config.Novel_update = novel_update
+            downloader.range = novel_range
+            downloader.load_down_args(download_url)
+            downloader.download_novel()
+            exit(0)
+
+    else:
+        print(f"""
+        作者：Canyang2008
+        项目地址：https://github.com/canyang2008/NovelDownloader
+        检查配置中……{Fore.YELLOW}注：格式化操作是删除data/Local文件夹再次运行即可\n\n""")
+
+        print("正在获取默认配置文件中")
+        # 直接从GitHub获取，保证是最新的
+        print(f"{Fore.BLUE}尝试获取 UserConfig.json 和 mems.json (12s)")
+        # 读取 UserConfig.json
+        api_url_for_userconfig = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/UserConfig.json"
+        try:
+            template_userconfig = get_github(api_url_for_userconfig)
+            print(f"{Fore.GREEN} UserConfig.json 获取成功")
+        except requests.exceptions.RequestException as e:
+            print(f" UserConfig.json 获取失败，原因: {e}")
+            print("无法为创建新用户提供最新配置模板")
+        # 读取 mems.json
+        api_url_for_mems = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/mems.json"
+        try:
+            template_mems = get_github(api_url_for_mems)
+            print(f"{Fore.GREEN} mems.json 获取成功")
+        except requests.exceptions.RequestException as e:
+            print(f" mems.json 获取失败，原因: {e}")
+            print("无法为创建新用户提供最新分组模板")
+
+        if template_userconfig is None:
+            if os.path.exists("data/Demo/UserConfig.json"):
+                print("尝试读取data/Demo/UserConfig.json中")
+                try:
+                    with open(f"data/Demo/UserConfig.json", "r", encoding="utf-8") as f:
+                        template_userconfig = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    print(f" UserConfig.json 损坏，原因：{e}")
+            else:
+                print("data/Demo/UserConfig.json不存在, 无法创建新用户")
+
+        if template_userconfig is None:
+            if os.path.exists("data/Demo/mems.json"):
+                print("尝试读取data/Demo/mems.json中")
+                try:
+                    with open(f"data/Demo/mems.json", "r", encoding="utf-8") as f:
+                        template_mems = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    print(f" mems.json 损坏，原因：{e}")
+            else:
+                print("data/Demo/mems.json不存在, 无法创建新用户")
+        Check.main(template_userconfig, template_mems)
+        sys.excepthook = global_exception_handler  # 设置全局异常处理器
+        downloader.func()  # 功能
