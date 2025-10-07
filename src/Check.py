@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 from colorama import Fore
 
 
@@ -17,11 +18,16 @@ def insert_into_dict(original_dict, new_dict, after_key):
     return result
 
 
-def main(template_userconfig, template_mems):
+def main(template_userconfig):
     # 格式化
     if not os.path.exists("data/Local"):
-        print(f"{Fore.YELLOW}重置中")
-        init(template_userconfig, template_mems)
+        if template_userconfig is None:
+            print(f"{Fore.RED}模板文件缺失，无法初始化，请检查网络连接或重新下载程序")
+            exit(1)
+        else:
+            print(f"{Fore.YELLOW}重置中")
+            init(template_userconfig)
+            print(f"{Fore.GREEN}重置成功")
 
 
 def update(version: str, user_config: dict) -> dict | None:
@@ -43,7 +49,7 @@ def update(version: str, user_config: dict) -> dict | None:
             return user_config
 
 
-def init(template_userconfig, template_mems):
+def init(template_userconfig):
     os.makedirs("data/Local", exist_ok=True)
 
     init_manage = {
@@ -68,11 +74,15 @@ def init(template_userconfig, template_mems):
         json.dump(init_userconfig, f, ensure_ascii=False, indent=4)
     os.makedirs(f"data/Local/Default/User Data", exist_ok=True)
     os.makedirs(f"data/Local/Default/json", exist_ok=True)
-    init_mems = template_mems
+    init_mems = {
+    "Version": "1.1.0",
+    "Default": {
+    }
+}
     with open(f"data/Local/Default/json/mems.json", "w", encoding="utf-8") as f:
         json.dump(init_mems, f, ensure_ascii=False, indent=4)
 
-    template = """<!DOCTYPE html>
+    template_html = """<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -1778,5 +1788,5 @@ def init(template_userconfig, template_mems):
 
 </html>"""
     with open("data/Local/template.html", 'w', encoding='utf-8') as f:
-        f.write(template)
+        f.write(template_html)
     open("data/Local/urls.txt", 'w', encoding='utf-8').close()

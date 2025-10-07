@@ -129,7 +129,7 @@ class Save:
         self.Class_Novel.novel['config'] = novel_config
         return
 
-    def save(self, full_save=False, title=None):
+    def save(self):
         # 保存的格式 self.saved_novel
         for title in list(self.Class_Novel.novel["chapters"].keys()):
             # 格式化

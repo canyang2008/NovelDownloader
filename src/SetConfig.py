@@ -71,7 +71,7 @@ class SetConfig:
         with open(os.path.join(self.Base_dir, 'mems.json'), "r", encoding="utf-8") as f:
             self.mems = json.load(f)
 
-    def set_new_user(self, user_name:str, template:dict, template_mems) -> bool:
+    def set_new_user(self, user_name:str, template:dict) -> bool:
         new_userconfig = copy.deepcopy(template)
         new_userconfig["User_name"] = user_name
         new_userconfig['Browser']["port"] = 9444 + len(self.User_manage["USERS"].keys())    # 端口号不能与其他用户的相同
@@ -79,7 +79,11 @@ class SetConfig:
         with open(f"data/Local/{user_name}/UserConfig.json", "w", encoding="utf-8") as f:
             json.dump(new_userconfig, f, ensure_ascii=False, indent=4)
         with open(f"data/Local/{user_name}/json/mems.json", "w", encoding="utf-8") as f:
-            json.dump(template_mems, f, ensure_ascii=False, indent=4)
+            json.dump({
+    "Version": "1.1.0",
+    "Default": {
+    }
+}, f, ensure_ascii=False, indent=4)
         self.User_manage["USERS"][user_name] = {
             "User_config_path": f"data/Local/{user_name}/UserConfig.json",
             "User_data_dir": f"data/Local/{user_name}/User Data",

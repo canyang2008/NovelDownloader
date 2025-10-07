@@ -7,18 +7,18 @@ import os
 import re
 import sys
 import time
+import tkinter as tk
 import traceback
 import zipfile
 from datetime import datetime
 from pathlib import Path
-
 from tkinter import filedialog
-import tkinter as tk
-import Check
+
 import requests
 from colorama import init, Fore
 from tqdm import tqdm
 
+import Check
 from Biquge import Biquge
 from Fanqie import Fanqie
 from Qidian import Qidian
@@ -28,9 +28,110 @@ from SetConfig import SetConfig
 
 faulthandler.enable()
 init(autoreset=True)
-LASTEST_USERCONFIG_VERSION = '1.1.5'    # 最后一次版本配置更新
-template_userconfig = None
-template_mems = None
+LASTEST_USERCONFIG_VERSION = '1.1.4'    # 最后一次版本配置更新
+template_userconfig = \
+{
+"Version": "1.1.4",
+"User_name": "Default",
+"Group": "Default",
+"README": "This is the JSON template configured by the user, which is the most important template file for creating new users. Please do not modify it arbitrarily",
+"Play_completion_sound": False,
+"Get_mode": 0,
+"Browser": {
+  "State": {
+    "Fanqie": -1,
+    "Qidian": 0,
+    "Bqg128": 0
+  },
+  "Timeout": 10,
+  "Max_retry": 3,
+  "Interval": 2,
+  "Delay": [
+    1,
+    1.5
+  ],
+  "Port": 9445,
+  "Headless": False,
+  "path": ""
+},
+"Api": {
+  "Fanqie": {
+    "Option": "oiapi",
+    "oiapi": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Key": ""
+    }
+  }
+},
+"Save_method": {
+  "json": {
+    "enable": True,
+    "name": "name_default",
+    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+    "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
+  },
+  "txt": {
+    "enable": True,
+    "name": "name_default",
+    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+    "gap": 0,
+    "max_filesize": -1
+  },
+  "html": {
+    "enable": True,
+    "name": "name_default",
+    "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+    "one_file": True
+  }
+},
+  "Requests": {
+    "Fanqie": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    },
+    "Qidian": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    },
+    "Biquge": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    }
+  },
+  "Backup": {
+    "Auto": False,
+    "Auto_save_method": "T:86400",
+    "Dir": "C:\\\\",
+    "Name": "Novel_backup <User> <T:'%Y-%m-%d'>.zip",
+    "Last_time": -1,
+    "Pop_up_folder": True
+  },
+    "Unprocess": []
+}
 
 
 def mode_config_modify(choice: str, mode_user_config: dict) -> dict | bool:
@@ -565,7 +666,7 @@ class NovelDownloader:
         if self.Class_Config.Novel_update:
             self.update()  # 获取需更新小说标题及链接
             self.Class_Save.config(self.Class_Novel, self.Class_Config)  # 初始化保存配置
-            self.Class_Save.save(full_save=True)  # 覆写模式保存
+            self.Class_Save.save()  # 覆写模式保存
         if self.range:
             self.range = range_split(self.range, len(self.Class_Novel.down_title_list))  # 分割范围成连续数字列表
             self.Class_Novel.down_title_list = [self.Class_Novel.down_title_list[index - 1] for index in self.range]
@@ -579,7 +680,7 @@ class NovelDownloader:
             index += 1
             if not self.Class_Novel.download(title, url, index, self.download_url): return False
             if self.Class_Config.Save_method: pass
-            self.Class_Save.save(title=title)  # 保存
+            self.Class_Save.save()  # 保存
             self.down_progress.update(1)
         return True
 
@@ -810,11 +911,10 @@ class NovelDownloader:
                                                 print("账户已存在，请重新创建..")
                                                 continue
                                             else:
-                                                if template_userconfig is None or template_mems is None:
+                                                if template_userconfig is None:
                                                     print("无法创建")
                                                 else:
-                                                    if self.Class_Config.set_new_user(user_input, template_userconfig,
-                                                                                      template_mems):
+                                                    if self.Class_Config.set_new_user(user_input, template_userconfig):
                                                         print(f"账户已创建成功({self.Class_Config.USER})")
                                                 break
 
@@ -974,8 +1074,6 @@ console_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
-downloader = NovelDownloader(logger)
-downloader.Class_Config.load()
 if __name__ == "__main__":
     args = sys.argv
     if len(args) > 2:
@@ -1009,47 +1107,19 @@ if __name__ == "__main__":
         项目地址：https://github.com/canyang2008/NovelDownloader
         检查配置中……{Fore.YELLOW}注：格式化操作是删除data/Local文件夹再次运行即可\n\n""")
 
-        print("正在获取默认配置文件中")
-        # 直接从GitHub获取，保证是最新的
-        print(f"{Fore.BLUE}尝试获取 UserConfig.json 和 mems.json (12s)")
-        # 读取 UserConfig.json
-        api_url_for_userconfig = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/UserConfig.json"
-        try:
-            template_userconfig = get_github(api_url_for_userconfig)
-            print(f"{Fore.GREEN} UserConfig.json 获取成功")
-        except requests.exceptions.RequestException as e:
-            print(f" UserConfig.json 获取失败，原因: {e}")
-            print("无法为创建新用户提供最新配置模板")
-        # 读取 mems.json
-        api_url_for_mems = f"https://api.github.com/repos/canyang2008/NovelDownloader/contents/src/data/Demo/mems.json"
-        try:
-            template_mems = get_github(api_url_for_mems)
-            print(f"{Fore.GREEN} mems.json 获取成功")
-        except requests.exceptions.RequestException as e:
-            print(f" mems.json 获取失败，原因: {e}")
-            print("无法为创建新用户提供最新分组模板")
-
         if template_userconfig is None:
             if os.path.exists("data/Demo/UserConfig.json"):
                 print("尝试读取data/Demo/UserConfig.json中")
                 try:
                     with open(f"data/Demo/UserConfig.json", "r", encoding="utf-8") as f:
                         template_userconfig = json.load(f)
+                        print("读取成功")
                 except json.decoder.JSONDecodeError as e:
                     print(f" UserConfig.json 损坏，原因：{e}")
             else:
                 print("data/Demo/UserConfig.json不存在, 无法创建新用户")
 
-        if template_userconfig is None:
-            if os.path.exists("data/Demo/mems.json"):
-                print("尝试读取data/Demo/mems.json中")
-                try:
-                    with open(f"data/Demo/mems.json", "r", encoding="utf-8") as f:
-                        template_mems = json.load(f)
-                except json.decoder.JSONDecodeError as e:
-                    print(f" mems.json 损坏，原因：{e}")
-            else:
-                print("data/Demo/mems.json不存在, 无法创建新用户")
-        Check.main(template_userconfig, template_mems)
+        Check.main(template_userconfig)
         sys.excepthook = global_exception_handler  # 设置全局异常处理器
+        downloader = NovelDownloader(logger)
         downloader.func()  # 功能
