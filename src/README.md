@@ -48,105 +48,106 @@
 
   ```json
   {
-    "Version": "1.1.1",
+    "Version": "1.1.4",
     "User_name": "Default",
     "Group": "Default",
     "README": "",
     "Play_completion_sound": false,
     "Get_mode": 0,
-    "Threads_num": 1,
     "Browser": {
-        "State": {
-            "Fanqie": 0,
-            "Qidian": 0,
-            "Bqg128": 0
-        },
-        "Timeout": 10,
-        "Max_retry": 3,
-        "Interval": 2,
-        "Delay": [
-            1,
-            3.0
-        ],
-        "Port": 9445,
-        "Headless": false
+      "State": {
+        "Fanqie": -1,
+        "Qidian": 0,
+        "Bqg128": 0
+      },
+      "Timeout": 10,
+      "Max_retry": 3,
+      "Interval": 2,
+      "Delay": [
+        1,
+        1.5
+      ],
+      "Port": 9445,
+      "Headless": false,
+      "path": ""
     },
     "Api": {
-        "Fanqie": {
-            "Option": "oiapi",
-            "oiapi": {
-                "Max_retry": 3,
-                "Timeout": 10,
-                "Interval": 2,
-                "Delay": [
-                    1,
-                    3
-                ],
-                "Key": ""
-            }
-        },
-        "Qidian": {},
-        "Biquge": {}
-    },
-    "Requests": {
-        "Fanqie": {
-            "Max_retry": 3,
-            "Timeout": 10,
-            "Interval": 2,
-            "Delay": [
-                1,
-                3
-            ],
-            "Cookie": ""
-        },
-        "Qidian": {
-            "Max_retry": 3,
-            "Timeout": 10,
-            "Interval": 2,
-            "Delay": [
-                1,
-                3
-            ],
-            "Cookie": ""
-        },
-        "Biquge": {
-            "Max_retry": 3,
-            "Timeout": 10,
-            "Interval": 2,
-            "Delay": [
-                1,
-                3
-            ],
-            "Cookie": ""
+      "Fanqie": {
+        "Option": "oiapi",
+        "oiapi": {
+          "Max_retry": 3,
+          "Timeout": 10,
+          "Interval": 2,
+          "Delay": [
+            1,
+            3
+          ],
+          "Key": ""
         }
+      }
     },
     "Save_method": {
-        "json": {
-            "name": "name_default",
-            "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-            "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
-        },
-        "txt": {
-            "name": "name_default",
-            "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-            "gap": 0,
-            "max_filesize": -1
-        },
-        "html": {
-            "name": "name_default",
-            "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
-            "one_file": true
-        }
+      "json": {
+        "enable": true,
+        "name": "name_default",
+        "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+        "img_dir": "data\\Bookstore\\<User>\\<Group>\\<Name>\\Img"
+      },
+      "txt": {
+        "enable": true,
+        "name": "name_default",
+        "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+        "gap": 0,
+        "max_filesize": -1
+      },
+      "html": {
+        "enable": true,
+        "name": "name_default",
+        "dir": "data\\Bookstore\\<User>\\<Group>\\<Name>",
+        "one_file": true
+      }
     },
-    "Unprocess": [],
-    "Backup": {
-        "Auto": false,
-        "Auto_save_method": "T:86400",
-        "Dir": "C:\\\\",
-        "Name": "Novel_backup <User><T:'%Y-%m-%d'>.zip",
-        "Last_time": -1,
-        "Pop_up_folder": false
+  "Requests": {
+    "Fanqie": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    },
+    "Qidian": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
+    },
+    "Biquge": {
+      "Max_retry": 3,
+      "Timeout": 10,
+      "Interval": 2,
+      "Delay": [
+        1,
+        3
+      ],
+      "Cookie": ""
     }
+  },
+  "Backup": {
+    "Auto": false,
+    "Auto_save_method": "T:86400",
+    "Dir": "C:\\\\",
+    "Name": "Novel_backup <User> <T:'%Y-%m-%d'>.zip",
+    "Last_time": -1,
+    "Pop_up_folder": true
+  },
+    "Unprocess": []
   }
   ```
 

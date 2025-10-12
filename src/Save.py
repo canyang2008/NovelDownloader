@@ -3,9 +3,32 @@ import copy
 import json
 import os
 import re
+import threading
 import time
 from pathlib import Path
 
+
+def save_json(json_data, path):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(json_data)
+
+def img_save(root, img_items):
+    # 保存图片
+    for title in img_items.keys():
+        # 检查当前章节是否保存了图片
+        img_item = img_items[title]
+        # 当有图片数据时
+        if img_item:
+            # 避免title非法导致无法保存
+            formatted_title = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', title)
+            img_title_dir = root / formatted_title
+            img_title_dir.mkdir(parents=True, exist_ok=True)  # 确保目录存在
+            for alt, data in img_item.items():
+                img_alt_path = img_title_dir / f"{alt}.png"  # 以图片描述为文件名
+                img_data = base64.b64decode(data[21:])  # 纯base64数据
+                # 保存
+                with open(img_alt_path, 'wb') as f:
+                    f.write(img_data)
 
 class Save:
     def __init__(self, logger_):
@@ -36,12 +59,6 @@ class Save:
             )
 
         self.saved_novel['小说信息'] = {
-            "img": {
-                'saved': False,
-                'item': {
-                    "封面图片":self.Class_Novel.novel['info']["book_cover_data"]
-                }
-            },
             "txt": {
                 'saved': False,
                 'text': info_text,
@@ -110,6 +127,10 @@ class Save:
             config['dir'].mkdir(parents=True, exist_ok=True)
             # === 配置准备结束 ===
 
+        for title in self.Class_Novel.novel['chapters'].keys():
+            img_item = self.Class_Novel.novel['chapters'][title]['img_item']
+            if img_item:
+                self.Class_Novel.img_items[title] = img_item
         # 小说配置
         timestamp = time.time()
         self.Class_Config.mems[self.Class_Config.Group][self.Class_Novel.novel['info']['url']] = \
@@ -127,9 +148,15 @@ class Save:
             'Last_control_timestamp': timestamp,
         }
         self.Class_Novel.novel['config'] = novel_config
+        if 'config' == list(self.Class_Novel.novel.keys())[-1]:     # 整理顺序以便之后的保存
+            ordered_novel = {"info":self.Class_Novel.novel['info'],
+                             'config':self.Class_Novel.novel['config'],
+                             'chapters':self.Class_Novel.novel['chapters']
+                             }
+            self.Class_Novel.novel = ordered_novel
         return
 
-    def save(self):
+    def save(self,current_title:str|None = None):
         # 保存的格式 self.saved_novel
         for title in list(self.Class_Novel.novel["chapters"].keys()):
             # 格式化
@@ -174,12 +201,16 @@ class Save:
             if title not in self.Class_Novel.all_title_list:
                 sorted_saved_novel[title] = content
 
+        json_content = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+        save_json_thread = threading.Thread(target=save_json,
+                                            args=(json_content, self.save_config['json']['filepath']))
+        save_json_thread.start()
         # 保存
         for file_format in self.Class_Config.Save_method.keys():
             match file_format:
                 case 'json':
-                    if self.save_config[file_format].get('enable', True):
-                        self._json_save()
+                    if self.save_config[file_format].get('enable',True):
+                        self._json_save(current_title,json_content)
                 case 'txt':
                     if self.save_config[file_format].get('enable', True):
                         self._txt_save()
@@ -189,8 +220,9 @@ class Save:
                 case 'html':
                     if self.save_config[file_format].get('enable', True):
                         self._html_save()
+        self.Class_Novel.img_items = {}
 
-    def _json_save(self):
+    def _json_save(self,current_title,json_content):
 
         base_dir = self.Class_Config.Base_dir
         os.makedirs(base_dir, exist_ok=True)
@@ -201,42 +233,19 @@ class Save:
         self.Class_Novel.novel["config"]["Last_control_timestamp"] = timestamp
 
         # 保存JSON文件
-        json_content = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
         with open(os.path.join(base_dir, file_name), 'w', encoding='utf-8') as f:       # 根JSON文件
-            f.write(json_content)
-
-        with open(self.save_config['json']['filepath'], 'w', encoding='utf-8') as f:
             f.write(json_content)
 
         """执行保存操作"""
         self.Class_Config.save_config()
 
-        # 保存图片
-        for title in self.saved_novel.keys():
-            # 检查当前章节是否保存了图片
-            if not self.saved_novel[title]['img']['saved']:
-                img_item = self.saved_novel[title]['img']['item']
-                # 当有图片数据时
-                if img_item:
-                    # 避免title非法导致无法保存
-                    formatted_title = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', title)
-                    img_title_dir = self.save_config['json']['img_dir'] / formatted_title \
-                        if formatted_title != '小说信息' else self.save_config['json']['img_dir'] / "封面图片"
-                    img_title_dir.mkdir(parents=True, exist_ok=True)        # 确保目录存在
-                    for alt, data in img_item.items():
-                        img_alt_path = img_title_dir / f"{alt}.png"         # 以图片描述为文件名
-                        img_data = base64.b64decode(data[21:])              # 纯base64数据
-                        # 保存
-                        with open(img_alt_path, 'wb') as f:
-                            f.write(img_data)
-                # 不再读取img_item
-                self.saved_novel[title]['img']['saved'] = True
-
+        img_save(self.save_config['json']['img_dir'],self.Class_Novel.img_items)
+        pass
     def _txt_save(self):
         gap = self.save_config['txt'].get('gap', -1)
         if gap > 1:
             # 获取所有章节标题的有序列表
-            chapter_titles = list(self.saved_novel.keys())
+            chapter_titles = list(self.saved_novel.keys())[1:]
 
             for title in chapter_titles:
                 # 检查当前章节是否未保存
@@ -320,13 +329,32 @@ class Save:
 
     def _html_save(self):
         # 此html阅读器蓝本由deepseek及豆包调校后提供
-
+        one_file = self.save_config['html'].get('one_file', True)
         with open(r'data\Local\template.html', encoding='utf-8') as f:
             template = f.read()
-        # html路径
-        html_path = self.save_config['html']['dir'] / f'{self.novel_name}.html'
-        noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
-        template = template.replace("<&?NovelData!&>", noveldata)   # 替换为json
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(template)
+        if one_file:
+            # html路径
+            noveldata = json.dumps(self.Class_Novel.novel, ensure_ascii=False, indent=4)
+            template = template.replace("<&?NovelData!&>", noveldata)   # 替换为json
+            html_path = self.save_config['html']['dir'] / f'{self.novel_name}.html'
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(template)
+        else:
+            info = self.Class_Novel.novel['info'].copy()
+            info['book_cover_data'] = f'Img/封面图片/{self.novel_name}.png'
+            html_novel = {'info':info,'chapters':{}}
+            for title in self.Class_Novel.novel['chapters'].keys():
+                chapter = copy.deepcopy(self.Class_Novel.novel['chapters'][title])
+                for alt in chapter['img_item'].keys():
+                    chapter['img_item'][alt] = f'Img/{title}/{alt}.png'
+                html_novel['chapters'][title] = chapter
+            if 'json' in self.save_config.keys():
+                if self.save_config['json']['img_dir'] != (self.save_config['html'][
+                'dir'] / 'Img'):
+                    img_save(self.save_config['html']['dir'],self.Class_Novel.img_items)
+            noveldata = json.dumps(html_novel, ensure_ascii=False, indent=4)
+            template = template.replace("<&?NovelData!&>", noveldata)  # 替换为json
+            html_path = self.save_config['html']['dir'] / f'{self.novel_name}.html'
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(template)
         return

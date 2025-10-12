@@ -14,7 +14,6 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
 
-import requests
 from colorama import init, Fore
 from tqdm import tqdm
 
@@ -34,7 +33,7 @@ template_userconfig = \
 "Version": "1.1.4",
 "User_name": "Default",
 "Group": "Default",
-"README": "This is the JSON template configured by the user, which is the most important template file for creating new users. Please do not modify it arbitrarily",
+"README": "",
 "Play_completion_sound": False,
 "Get_mode": 0,
 "Browser": {
@@ -469,22 +468,6 @@ def setting(option: str, user_config: dict) -> dict | bool:
     return False
 
 
-def get_github(url: str) -> dict | None:
-    headers = {
-        "Accept": "application/vnd.github.v3+raw",
-        "user-agent": "ozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
-    }
-    response = requests.get(url, headers=headers, timeout=6)
-    if response.status_code == 200:
-        json_data = response.json()
-        import base64
-        content_decoded = base64.b64decode(json_data['content']).decode('utf-8')
-        return json.loads(content_decoded)
-    else:
-        print(f"文件获取失败，状态码: {response.status_code}")
-        return None
-
-
 def global_exception_handler(exctype, value, tb):
     """全局异常处理器"""
     error_msg = ''.join(traceback.format_exception(exctype, value, tb))
@@ -666,7 +649,7 @@ class NovelDownloader:
         if self.Class_Config.Novel_update:
             self.update()  # 获取需更新小说标题及链接
             self.Class_Save.config(self.Class_Novel, self.Class_Config)  # 初始化保存配置
-            self.Class_Save.save()  # 覆写模式保存
+            self.Class_Save.save(None)  # 覆写模式保存
         if self.range:
             self.range = range_split(self.range, len(self.Class_Novel.down_title_list))  # 分割范围成连续数字列表
             self.Class_Novel.down_title_list = [self.Class_Novel.down_title_list[index - 1] for index in self.range]
@@ -675,14 +658,17 @@ class NovelDownloader:
         return True
 
     def _download(self):
-        index = self.Class_Novel.all_title_list.index(self.Class_Novel.down_title_list[0]) - 1
-        for title, url in zip(self.Class_Novel.down_title_list, self.Class_Novel.down_url_list):
-            index += 1
-            if not self.Class_Novel.download(title, url, index, self.download_url): return False
-            if self.Class_Config.Save_method: pass
-            self.Class_Save.save()  # 保存
-            self.down_progress.update(1)
-        return True
+        if self.Class_Novel.down_title_list:     # 当有下载章节时
+            index = self.Class_Novel.all_title_list.index(self.Class_Novel.down_title_list[0]) - 1
+            for title, url in zip(self.Class_Novel.down_title_list, self.Class_Novel.down_url_list):
+                index += 1
+                if not self.Class_Novel.download(title, url, index, self.download_url): return False
+                if self.Class_Config.Save_method: pass
+                self.Class_Save.save(title)  # 保存
+                self.down_progress.update(1)
+            return True
+        else:
+            return False
 
     def download_novel(self):
         # 获取被中断的链接
@@ -711,8 +697,8 @@ class NovelDownloader:
 
         while True:
 
-            # 重新加载默认Config
-            self.Class_Config.load()
+            # 重新加载
+            self.__init__(self.logger)
             # 中断重新下载
             unprocess = self.Class_Config.User_config['Unprocess']
             if unprocess:
@@ -1103,21 +1089,9 @@ if __name__ == "__main__":
 
     else:
         print(f"""
-        作者：Canyang2008
-        项目地址：https://github.com/canyang2008/NovelDownloader
-        检查配置中……{Fore.YELLOW}注：格式化操作是删除data/Local文件夹再次运行即可\n\n""")
-
-        if template_userconfig is None:
-            if os.path.exists("data/Demo/UserConfig.json"):
-                print("尝试读取data/Demo/UserConfig.json中")
-                try:
-                    with open(f"data/Demo/UserConfig.json", "r", encoding="utf-8") as f:
-                        template_userconfig = json.load(f)
-                        print("读取成功")
-                except json.decoder.JSONDecodeError as e:
-                    print(f" UserConfig.json 损坏，原因：{e}")
-            else:
-                print("data/Demo/UserConfig.json不存在, 无法创建新用户")
+作者：Canyang2008
+项目地址：https://github.com/canyang2008/NovelDownloader
+检查配置中……{Fore.YELLOW}\n\n""")
 
         Check.main(template_userconfig)
         sys.excepthook = global_exception_handler  # 设置全局异常处理器

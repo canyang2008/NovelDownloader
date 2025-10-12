@@ -30,6 +30,7 @@ class Fanqie:
         self.user_state_code = -1  # 用户状态码 -1:未登录状态； 0：无vip； 1：标准
         self.Class_Config = class_config
         self.Class_Driver = class_driver
+        self.img_items = {}
 
     def user_state_for_html(self, html):
         soup = BeautifulSoup(html, 'lxml')
@@ -90,6 +91,7 @@ class Fanqie:
         book_cover_data = base64.b64encode(requests.get(book_cover_url).content).decode("utf-8")
         chapter_list_with_volume = json_data.get("page").get("chapterListWithVolume")
         self.all_title_list = []
+        self.all_url_list = []
         for chapter_list in chapter_list_with_volume:
             for chapter_item in chapter_list:
                 self.all_title_list.append(chapter_item.get("title"))
@@ -104,6 +106,7 @@ class Fanqie:
         self.novel['info']['abstract'] = abstract
         self.novel['info']['book_cover_data'] = "data:image/png;base64," + book_cover_data
         self.novel['info']['url'] = url
+        self.img_items['封面图片'] = {name: "data:image/png;base64," + book_cover_data}
         # 更新下载列表
         self.down_url_list, self.down_title_list = self.all_url_list, self.all_title_list
         return True
@@ -251,7 +254,6 @@ class Fanqie:
             img_data = "data:image/png;base64," + img_data
             # 添加到图片字典
             img_dict[dict_key] = img_data
-
             # 替换图片为指定文本 - 创建一个新的 NavigableString
             replacement_text = soup.new_string(f'<&!img?group_id={group_id}/!&>')
             img.replace_with(replacement_text)
@@ -285,6 +287,7 @@ class Fanqie:
         text_content = [text_content[i] for i in range(0, len(text_content), 2)]  # 去除重复文本
         novel_content = "\n".join(text_content)
         # 赋值
+        self.img_items = img_dict.copy()
         self.novel['chapters'][title] = {
             'url': url,
             'update': update_time,
