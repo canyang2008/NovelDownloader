@@ -8,7 +8,7 @@
 ## 更新记录
 - ### 2025/10/18
 
-  **版本：NovelDownloader-1.1.Lastest**
+  **版本：NovelDownloader-1.1.Last**
   
   **修改**
   - 图片保存在错误目录或者不保存
