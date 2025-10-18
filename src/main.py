@@ -621,13 +621,13 @@ class NovelDownloader:
 
     def load_down_args(self, url):
 
-        url = url.split('?')[0].strip()  # 不带参数的url
         if 'https://changdunovel.com/wap/' in url:  # 处理番茄小说的分享链接
             book_id = re.search(r"book_id=(\d+)", url).group(1)
             url = 'https://fanqienovel.com/page/' + book_id
         if "https://magev6.if.qidian.com/h5/share" in url:  # 处理起点小说的分享链接
             book_id = re.search(r"bookld=(\d+)", url).group(1)
             url = 'https://www.qidian.com/book/' + book_id
+        url = url.split('?')[0].strip()  # 不带参数的url
         if 'fanqienovel.com' in url:
             self.Class_Novel = self.Class_Fanqie
         elif 'qidian.com' in url:
@@ -826,8 +826,7 @@ class NovelDownloader:
 
                     case "3":
                         print(
-                            """将打开urls.txt,请在文件中输入小说链接，一行一个。\
-                            输入完成后请保存并关闭文件，然后按 Enter 键继续...""")
+                            """将打开urls.txt,请在文件中输入小说链接，一行一个。输入完成后请保存并关闭文件，然后按 Enter 键继续...""")
                         time.sleep(0.5)
                         os.startfile('data\\Local\\urls.txt')  # 弹出url.txt（Windows）
                         input()
@@ -1094,6 +1093,6 @@ if __name__ == "__main__":
 检查配置中……{Fore.YELLOW}\n\n""")
 
         Check.main(template_userconfig)
-        sys.excepthook = global_exception_handler  # 设置全局异常处理器
+        # sys.excepthook = global_exception_handler  # 设置全局异常处理器
         downloader = NovelDownloader(logger)
         downloader.func()  # 功能

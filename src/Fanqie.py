@@ -287,7 +287,7 @@ class Fanqie:
         text_content = [text_content[i] for i in range(0, len(text_content), 2)]  # 去除重复文本
         novel_content = "\n".join(text_content)
         # 赋值
-        self.img_items = img_dict.copy()
+        self.img_items[title] = img_dict.copy()
         self.novel['chapters'][title] = {
             'url': url,
             'update': update_time,
