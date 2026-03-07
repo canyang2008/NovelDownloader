@@ -123,6 +123,7 @@ class _QidianForHtml(BaseParser):
                                       volume=volume)
                     novel.update(chapter)
                     order += 1
+        novel.total = len(novel.chapters)
         return novel
 
     def parse_chapter_content(self, content, orders:list[int], **kwargs) -> tuple[Chapter | None]:

@@ -63,6 +63,7 @@ class Novel:
     """小说数据"""
     url: str
     name: str
+    total: int = 0
     author: str | None = None
     author_description: str | None = None
     tags: list[str] = field(default_factory=list)

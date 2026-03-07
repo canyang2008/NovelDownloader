@@ -29,7 +29,11 @@ class Group:
     save_method:Any | None = None
 
     def __hash__(self) -> int:
-        return hash((self.group_name, self.novel_name))
+        return hash((self.group_name, self.novel_name, self.url))
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.group_name == other.group_name and self.novel_name == other.novel_name
+        return super().__eq__(other)
 
 @dataclass
 class Groups:
@@ -58,24 +62,18 @@ class Groups:
                     results.append(group)
         return results
     def update(self, group):
-        to_remove = set()
-        for groups_list in self.groups.values():
-            for existing in groups_list:
-                if existing.group_name == group.group_name or existing.url == group.url:
-                    to_remove.add(existing)
-
-        new_groups_dict = {}
-        for grp_name, groups_list in self.groups.items():
-            filtered = [g for g in groups_list if g not in to_remove]
-            if filtered:
-                new_groups_dict[grp_name] = filtered
-
-        if group.group_name in new_groups_dict:
-            new_groups_dict[group.group_name].append(group)
+        name = group.group_name
+        if name in self.groups:
+            groups_set = set(self.groups[name])
+            groups_set.add(group)
+            self.groups[name] = list(groups_set)
         else:
-            new_groups_dict[group.group_name] = [group]
+            self.groups[name] = [group]
 
-        self.groups = new_groups_dict
     def create_group(self,group_name:str):
         if group_name not in self.groups.keys():
             self.groups[group_name] = []
+
+    def delete_group(self,group_name):
+        if group_name in self.groups.keys():
+            self.groups.pop(group_name)

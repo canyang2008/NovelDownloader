@@ -1,9 +1,9 @@
 import base64
 import json
-import os
-from novel_downloader import SaveMethodConfig, DownloadMode
-from novel_downloader.models.group import Group
+from novel_downloader.models import DownloadMode
 from novel_downloader.models.novel import Novel, Chapter,json_to_img
+from novel_downloader.models.save import SaveMethodConfig
+from novel_downloader.models.group import Group
 
 
 class NovelStorage:
@@ -47,7 +47,7 @@ class NovelStorage:
                         author_description=data.get('author_description'),
                         tags=data.get('tags'),                # 预期为列表
                         description=data.get('description'),
-                        count=data.get('count'),
+                        count=data.get('count',0),
                         last_update_chapter=data.get('last_update_chapter'),
                         last_update_time=data.get('last_update_time'),
                         rating=data.get('rating'),

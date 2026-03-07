@@ -1,0 +1,7 @@
+beautifulsoup4
+colorama
+ebooklib
+lxml
+Requests
+tqdm
+urllib3

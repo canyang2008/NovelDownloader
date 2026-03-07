@@ -6,6 +6,9 @@ from typing import Any
 
 from novel_downloader.models.config import SiteApiConfig, SiteRequestsConfig, ApiProviderConfig
 from novel_downloader.models.config import UserConfig
+mode = 0
+if os.getenv("ND_MODE"):
+    mode = int(os.getenv("ND_MODE"))
 template_userconfig1 = \
     {
         "Version": "1.2.0",
@@ -14,7 +17,7 @@ template_userconfig1 = \
         "README": "",
         "Threads_num": 3,
         "Play_completion_sound": False,
-        "Get_mode": 0,
+        "Get_mode": mode,
         "Browser": {
             "Timeout": 10,
             "Max_retry": 3,
@@ -145,10 +148,16 @@ def init1(name:str= "Default"):
             }
         }
     }
+    user_manage = {name: {
+                "User_config_path": os.path.join("data","Local",name,"UserConfig.json"),
+                "User_data_dir":os.path.join("data","Local",name,"User Data"),
+                "Base_dir": os.path.join("data","Local",name,"json")
+            }
+    }
     if os.path.exists(os.path.join("data", "Local", "manage.json")):
         with open(os.path.join("data", "Local", "manage.json"), "r", encoding="utf-8") as f:
             manage_config = json.load(f)
-            manage_config.update(init_manage)
+            manage_config["USERS"].update(user_manage)
     else:
         manage_config = init_manage
     with open(os.path.join("data", "Local", "manage.json"), "w", encoding="utf-8") as f:
@@ -156,7 +165,7 @@ def init1(name:str= "Default"):
 
     init_userconfig = template_userconfig1
 
-    with open(os.path.join("data", "Local", "Default", "UserConfig.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join("data", "Local", name, "UserConfig.json"), "w", encoding="utf-8") as f:
         init_userconfig["User_name"] = name
         init_userconfig["Browser"]["path"] = os.path.join("data","Local",name,"User Data")
         json.dump(init_userconfig, f, ensure_ascii=False, indent=4)
@@ -165,7 +174,7 @@ def init1(name:str= "Default"):
         "Default": {
         }
     }
-    with open(os.path.join("data", "Local", "Default", "json", "mems.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join("data", "Local", name, "json", "mems.json"), "w", encoding="utf-8") as f:
         json.dump(init_mems, f, ensure_ascii=False, indent=4)
     if not os.path.exists(os.path.join("data", "Local", "template.html")):
         template_html = base64.b64decode(template_html_base64).decode('utf-8')
@@ -186,10 +195,13 @@ def init2(name:str= "Default"):
         "Default": template_userconfig2
     }
     template_userconfig2["browser"]["user_data_dir"] = str(os.path.join("data","Local",name,"User Data"))
+
+    # SettingConfig.json
     if os.path.exists(os.path.join("data", "Local", "SettingConfig.json")):
         with open(os.path.join("data", "Local", "SettingConfig.json"), "r", encoding="utf-8") as f:
             settingconfig = json.load(f)
             template_userconfig2["user"] = name
+            template_userconfig2["mode"] = mode
             settingconfig[name] = template_userconfig2
         with open(os.path.join("data", "Local", "SettingConfig.json"), "w", encoding="utf-8") as f:
             json.dump(settingconfig, f, ensure_ascii=False, indent=4)
@@ -197,16 +209,16 @@ def init2(name:str= "Default"):
         with open(os.path.join("data", "Local", "SettingConfig.json"), "w", encoding="utf-8") as f:
             json.dump(init_settingconfig, f, ensure_ascii=False, indent=4)
 
+    # UrlConfig.json
     if os.path.exists(os.path.join("data", "Local", "UrlConfig.json")):
         with open(os.path.join("data", "Local", "UrlConfig.json"), "r", encoding="utf-8") as f:
             urlconfig = json.load(f)
-            urlconfig["groups"] = []
             urlconfig["groups"] = {}
         with open(os.path.join("data", "Local", "UrlConfig.json"), "w", encoding="utf-8") as f:
             json.dump(urlconfig, f, ensure_ascii=False, indent=4)
     else:
         with open(os.path.join("data", "Local", "UrlConfig.json"), "w", encoding="utf-8") as f:
-            json.dump({"version": "1.2.0", "groups":{}}, f, ensure_ascii=False, indent=4)
+            json.dump({"version": "1.2.1", name:{}}, f, ensure_ascii=False, indent=4)
     if not os.path.exists(os.path.join("data", "Local", "template.html")):
         template_html = base64.b64decode(template_html_base64).decode('utf-8')
         with open(os.path.join("data", "Local", "template.html"), 'w', encoding='utf-8') as f:

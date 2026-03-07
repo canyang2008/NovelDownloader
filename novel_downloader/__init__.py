@@ -1,23 +1,35 @@
 import time
-from dataclasses import asdict
-from typing import Iterable
-from novel_downloader.core.downloader import ChromeDownloader, APIDownloader, RequestsDownloader, DownloaderFactory
-from novel_downloader.models import DownloadMode, Website
-from novel_downloader.models.config import UserConfig, SiteApiConfig, ApiProviderConfig, SiteRequestsConfig
-from novel_downloader.models.group import Group
-from novel_downloader.models.save import SaveMethodConfig
-from novel_downloader.parsers import parse_url
-from novel_downloader.models.novel import Novel, Chapter
-from novel_downloader.models.save import TxtSaveConfig,BaseSaveConfig
-from novel_downloader.outputs.txt import TXTOutput
-from novel_downloader.outputs.base import BASEOutput
-from typing import Dict, Any
 import importlib
 import os
 import threading
+from typing import Dict, Any
+from dataclasses import asdict
+from typing import Iterable
+from novel_downloader.models import DownloadMode, Website
+from novel_downloader.models.group import Group
+from novel_downloader.models.novel import Novel, Chapter
 from novel_downloader.core.storage import NovelStorage
-from novel_downloader.outputs import dir_transform
-from novel_downloader.outputs import sanitize_name
+from novel_downloader.parsers import parse_url
+from novel_downloader.core.downloader import (
+    ChromeDownloader,
+    APIDownloader,
+    RequestsDownloader,
+    DownloaderFactory
+)
+from novel_downloader.models.config import (
+    UserConfig,
+    SiteApiConfig,
+    ApiProviderConfig,
+    SiteRequestsConfig
+)
+from novel_downloader.models.save import (
+    SaveMethodConfig,
+    BaseSaveConfig
+)
+from novel_downloader.outputs import (
+    dir_transform,
+    sanitize_name
+)
 class NovelDownloader:
     """小说下载器主类"""
     thread_lock = threading.Lock()
@@ -327,7 +339,7 @@ class NovelDownloader:
                 val = base_val
             if val and isinstance(val, list):
                 val = (val[0], val[1])
-            final['delay'] = val if val is not None else (1.0, 3.0)
+            final['delay'] = val if val is not None else (3.0, 5.0)
 
         # ---------- 浏览器特定参数 ----------
         if port is not None:
@@ -729,7 +741,6 @@ class NovelDownloader:
     def switch_user(self,name):
         """切换用户"""
         self.config_manager.load_config(name)
-        self.config.user = name
         self.config = self.config_manager.config
         self.save_config()
     def switch_group(self,name):
@@ -738,12 +749,14 @@ class NovelDownloader:
         self.save_config()
     def delete_user(self,name,deep=False):
         self.config_manager.delete_user(name,deep)
+    def delete_group(self,name):
+        self.config.groups.delete_group(name)
 
     def auto_backup(self):
         """备份"""
         if self.config.backup.auto:
             if time.time() - self.config.backup.last_time > self.config.backup.interval:
-                novel_dir = dir_transform(BaseSaveConfig.output_dir,self.config.user,self.config.group,None)
+                novel_dir = dir_transform(self.config.backup.backup_dir,self.config.user,self.config.group,None)
                 backup_path = os.path.join(self.config.backup.backup_dir,self.config.backup.name)
                 import zipfile
                 with zipfile.ZipFile(backup_path, 'w', self.config.backup.compression) as zipf:

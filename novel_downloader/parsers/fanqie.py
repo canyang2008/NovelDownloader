@@ -274,7 +274,6 @@ class _FanqieForHtml(BaseParser):
                       last_update_time=last_update_of_time,
                       cover_image_data=book_cover_data
                       )
-
         chapter_list_with_volume = json_data.get("page").get("chapterListWithVolume")
         for chapters_list in chapter_list_with_volume:
             for chapter_item in chapters_list:
@@ -289,6 +288,7 @@ class _FanqieForHtml(BaseParser):
                                   order=real_chapter_order,
                                   timestamp=first_pass_time)
                 novel.update(chapter)
+        novel.total = len(novel.chapters)
         return novel
 
     def parse_chapter_content(self, content, orders: list[int], **kwargs) -> tuple[Chapter | None]:
@@ -568,11 +568,19 @@ class FanqieForOiapi(BaseParser):
 
     def parse_novel_info(self, content, **kwargs) -> Novel | None:
 
-        message = content['message']
-        data = content.get('data')
+        post_data = {
+            "chapter":0,
+            "id": re.search(r'page/(\d+)', content).group(1),
+            "key": self.downloader.key,
+            "type": "json"
+        }
+        json_data = self.downloader.get(url="https://oiapi.net/api/FqRead",post_data=post_data)
+        message = json_data['message']
+        data = json_data.get('data')
         if not data:
             raise APIError("OIAPI",f"oiapi message:{message}")
         else:
+            total = data.get("serial")
             url = f"https://fanqienovel.com/page/{data.get('id')}"
             book_cover_data = requests.get(data.get('thumb')).content
             name = data.get('title')
@@ -581,6 +589,7 @@ class FanqieForOiapi(BaseParser):
             # 更新小说信息
             self.novel = Novel(url=url,
                                name=name,
+                               total=total,
                                author=author,
                                author_description=None,
                                count=word_number,
@@ -612,7 +621,7 @@ class FanqieForReq(_FanqieForHtml):
     def parse_novel_info(self, content, **kwargs) -> Novel:
         html = self.downloader.get(url=content)
         self.user_status = user_status(html)
-        self.novel = super().parse_novel_info(content=content, **kwargs)
+        self.novel = super().parse_novel_info(content=html, **kwargs)
         return self.novel
 
 class FanqieParser(BaseParser):

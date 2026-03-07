@@ -7,6 +7,13 @@ class DownloadMode(Enum):
     API = 1
     REQUESTS = 2
 
+    def __str__(self):
+        return str(self.value)
+    def __eq__(self, other):
+        if isinstance(other, int):
+            return self.value == other
+        return super().__eq__(other)
+
 class Website(Enum):
     FANQIE = "fanqie"
     QIDIAN = "qidian"

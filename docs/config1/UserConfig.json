@@ -1,0 +1,98 @@
+{
+    "Version": "1.2.0",
+    "User_name": "Default",
+    "Group": "Default",
+    "README": "",
+    "Threads_num": 3,
+    "Play_completion_sound": false,
+    "Get_mode": 0,
+    "Browser": {
+        "Timeout": 10,
+        "Max_retry": 3,
+        "Interval": 2,
+        "Delay": [
+            3,
+            5
+        ],
+        "Port": 9445,
+        "Headless": false,
+        "path": "data/Local/Default/User Data"
+    },
+    "Api": {
+        "Fanqie": {
+            "Option": "oiapi",
+            "oiapi": {
+                "Max_retry": 3,
+                "Timeout": 10,
+                "Interval": 2,
+                "Delay": [
+                    3,
+                    5
+                ],
+                "Key": ""
+            }
+        }
+    },
+    "Requests": {
+        "Fanqie": {
+            "Max_retry": 3,
+            "Timeout": 10,
+            "Interval": 2,
+            "Delay": [
+                3,
+                5
+            ],
+            "Cookie": ""
+        },
+        "Qidian": {
+            "Max_retry": 3,
+            "Timeout": 10,
+            "Interval": 2,
+            "Delay": [
+                3,
+                5
+            ],
+            "Cookie": ""
+        },
+        "Biquge": {
+            "Max_retry": 3,
+            "Timeout": 10,
+            "Interval": 2,
+            "Delay": [
+                3,
+                5
+            ],
+            "Cookie": ""
+        }
+    },
+    "Save_method": {
+        "json": {
+            "enable": true,
+            "name": "name_default",
+            "dir": "data/Bookstore/<User>/<Group>/<Name>",
+            "img_dir": "data/Bookstore/<User>/<Group>/<Name>/Img"
+        },
+        "txt": {
+            "enable": true,
+            "name": "name_default",
+            "dir": "data/Bookstore/<User>/<Group>/<Name>",
+            "gap": 0,
+            "max_filesize": -1
+        },
+        "html": {
+            "enable": true,
+            "name": "name_default",
+            "dir": "data/Bookstore/<User>/<Group>/<Name>",
+            "one_file": true
+        }
+    },
+    "Backup": {
+        "Auto": false,
+        "Auto_save_method": "T:86400",
+        "Dir": "/home/canyang/novel_backup",
+        "Name": "Novel_backup <User> <T:'%Y-%m-%d'>.zip",
+        "Last_time": -1,
+        "Pop_up_folder": true
+    },
+    "Unprocess": []
+}

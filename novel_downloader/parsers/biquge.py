@@ -74,6 +74,7 @@ class _BiqugeForHtml(BaseParser):
             )
             order += 1
             novel.update(chapter)
+        novel.total = len(novel.chapters)
         return novel
 
     def parse_chapter_content(self, content, orders, **kwargs) ->tuple[dict, str | None]:
@@ -146,7 +147,7 @@ class BiqugeParser(BaseParser):
         if downloader.MODE == DownloadMode.BROWSER:
             self.__parser = BiqugeForBrowser(downloader=downloader,**kwargs)
         elif downloader.MODE == DownloadMode.API:
-            raise FeatureNotSupportedError("biqugequ暂不支持API")
+            raise FeatureNotSupportedError("biquge暂不支持API")
         elif downloader.MODE == DownloadMode.REQUESTS:
             self.__parser = BiqugeForReq(downloader=downloader,**kwargs)
         self.batch_size = self.__parser.batch_size

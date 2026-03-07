@@ -1,15 +1,19 @@
-import base64
-import copy
 import json
 import os
 from typing import Any
-from novel_downloader import UserConfig, DownloadMode, BaseSaveConfig
-from novel_downloader.models.save import ImgSaveConfig, EpubSaveConfig, JsonSaveConfig, TxtSaveConfig, HtmlSaveConfig
-
+from novel_downloader.models.save import (
+    BaseSaveConfig,
+    ImgSaveConfig,
+    EpubSaveConfig,
+    JsonSaveConfig,
+    TxtSaveConfig,
+    HtmlSaveConfig
+)
 from novel_downloader.outputs import dir_transform
 from novel_downloader.models.group import Group, Groups
 from novel_downloader.models.config import (
     DownloadMode,
+    UserConfig,
     BrowserConfig,
     SiteApiConfig,
     SiteRequestsConfig,
@@ -50,20 +54,14 @@ class ConfigManager1:
             raw_data = json.load(f)
         # 基础字段
         self.config.version = raw_data.get("Version")
+        self.config.user = self.__user
         self.config.group = raw_data.get("Group")
         self.config.readme = raw_data.get("README")
         self.config.play_sound = {"completion":raw_data.get("Play_completion_sound")}
         self.config.mode = raw_data.get("Get_mode")
         self.config.thread_count = raw_data.get("Threads_num")
         mode = raw_data.get("Get_mode")
-        if mode == 0:
-            self.config.mode = DownloadMode.BROWSER
-        elif mode == 1:
-            self.config.mode = DownloadMode.API
-        elif mode == 2:
-            self.config.mode = DownloadMode.REQUESTS
-        else:
-            self.config.mode = DownloadMode.BROWSER
+        self.config.mode = DownloadMode(mode)
 
         # 浏览器配置
         browser_data = raw_data.get("Browser")
@@ -205,16 +203,14 @@ class ConfigManager1:
         self.config.groups = groups
         pass
     def save_config(self):
+        with open(os.path.join("data","Local","manage.json"), "r", encoding="utf-8") as f:
+            all_user_config = json.load(f)
+        all_user_config["USER"] = self.config.user
+        with open(os.path.join("data","Local","manage.json"), "w", encoding="utf-8") as f:
+            json.dump(all_user_config, f,ensure_ascii=False,indent=4)
         # 转换 Get_mode
         user_config = self.config
-        mode_int = 0
-        if user_config.mode == DownloadMode.BROWSER:
-            mode_int = 0
-        elif user_config.mode == DownloadMode.API:
-            mode_int = 1
-        elif user_config.mode == DownloadMode.REQUESTS:
-            mode_int = 2
-
+        mode_int = user_config.mode.value
         # 构建输出字典
         config_dict:dict[str,Any] = {
             "Version": user_config.version,
@@ -242,7 +238,6 @@ class ConfigManager1:
                 "Dir": user_config.backup.backup_dir,
                 "Name": user_config.backup.name,
                 "Last_time": user_config.backup.last_time,
-                "Pop_up_folder": user_config.backup.pop_up_folder
             },
             "Unprocess": user_config.unprocess
         }
@@ -325,10 +320,10 @@ class ConfigManager1:
             all_user_config = json.load(f)
         result = list(all_user_config["USERS"].keys())
         return result
-    @staticmethod
-    def create_user(name):
+    def create_user(self,name):
         from novel_downloader.utils.init_config import init1
         init1(name)
+        self.load_config(name)
     def delete_user(self,name,deep=False):
         with open(os.path.join("data","Local","manage.json"), "r", encoding="utf-8") as f:
             all_user_config = json.load(f)
@@ -344,7 +339,9 @@ class ConfigManager2:
         self.__user = None
         from novel_downloader.models.config import UserConfig
         self.config = UserConfig()
+        self._group_json = {}
         self.load_config()
+
     def load_config(self,user:str=None):
         with open(os.path.join("data","Local","SettingConfig.json"),"r",encoding="utf-8") as f:
             all_user_config = json.load(f)
@@ -353,21 +350,24 @@ class ConfigManager2:
         else:self.__user = user
         self._parse_config(all_user_config[self.__user])
         self.parse_group()
+
     def _parse_config(self,user_config):
         """解析原始配置数据"""
         raw_data = user_config
         # 基础字段
         self.config = UserConfig(**user_config)
         self.config.browser = BrowserConfig(**user_config["browser"])
-        self.config.api = {
-            "fanqie": SiteApiConfig(**user_config["api"]["fanqie"]),
-            "qidian": SiteApiConfig(**user_config["api"]["qidian"]),
-        }
-        self.config.requests = {
-            "fanqie": SiteRequestsConfig(**user_config["requests"]["fanqie"]),
-            "qidian": SiteRequestsConfig(**user_config["requests"]["qidian"]),
-            "biquge": SiteRequestsConfig(**user_config["requests"]["biquge"]),
-        }
+        api_data = user_config["api"]
+        for site, site_config in api_data.items():
+            option = site_config["option"]
+            providers = {}
+            for provider_name, provider_config in site_config["providers"].items():
+                providers[provider_name] = ApiProviderConfig(**provider_config)
+            self.config.api[site] = SiteApiConfig(option=option, providers=providers)
+
+        for site ,site_config in user_config["requests"].items():
+            self.config.requests[site] = SiteRequestsConfig(**site_config)
+
         self.config.backup = BackupConfig(**user_config["backup"])
         save_method_dict = raw_data.pop("save_method")
         save_method = SaveMethodConfig()
@@ -375,23 +375,26 @@ class ConfigManager2:
             if file_format != "base":
                 setattr(save_method,file_format,save_config)
         self.config.save_method = SaveMethodConfig()
-
-        if self.config.mode == 0:
-            self.config.mode = DownloadMode.BROWSER
-        elif self.config.mode == 1:
-            self.config.mode = DownloadMode.API
-        elif self.config.mode == 2:
-            self.config.mode = DownloadMode.REQUESTS
-        else:
-            self.config.mode = DownloadMode.BROWSER
+        self.config.mode = DownloadMode(user_config["mode"])
         pass
     def parse_group(self):
-        with open(os.path.join("data","Local","UrlConfig.json"),encoding="utf-8") as f:
+        with open(os.path.join("data","Local","UrlConfig.json",),encoding="utf-8") as f:
             json_data = json.load(f)
-        groups = Groups(version=json_data["version"])
-        for group_name,groups_dict in json_data["groups"].items():
-
-            for group_dict in groups_dict:
+        if json_data["version"] == "1.2.0":
+            self._group_json = {
+                "version": "1.2.1",
+                self.__user: json_data.pop("groups")
+            }
+        else:
+            self._group_json.update(json_data)
+        if self.__user not in self._group_json.keys():
+            self._group_json[self.__user] = {}
+        groups = Groups(version=self._group_json["version"])
+        for group_name,groups_list in self._group_json[self.__user].items():
+            if group_name == "version":
+                continue
+            groups.create_group(group_name)
+            for group_dict in groups_list:
                 group = Group(**group_dict)
                 save_method = {
                     "base": BaseSaveConfig(**group_dict["save_method"].get("base",{})),
@@ -403,60 +406,44 @@ class ConfigManager2:
                 }
                 group.save_method = SaveMethodConfig(**save_method)
                 groups.update(group)
+        for name,groups_list in groups.groups.items():
+            if groups_list:
+                for group in groups_list:
+                    group.mode = DownloadMode(group.mode)
         self.config.groups = groups
-        for name,groups in self.config.groups.groups.items():
-            for group in groups:
-                mode_int = group.mode
-                if mode_int == 0:
-                    group.mode = DownloadMode.BROWSER
-                elif mode_int == 1:
-                    group.mode = DownloadMode.API
-                elif mode_int == 2:
-                    group.mode = DownloadMode.REQUESTS
-                else:
-                    group.mode = DownloadMode.BROWSER
-    def save_config(self):
-        user_config = self.config
-        mode_int = 0
-        if user_config.mode == DownloadMode.BROWSER:
-            mode_int = 0
-        elif user_config.mode == DownloadMode.API:
-            mode_int = 1
-        elif user_config.mode == DownloadMode.REQUESTS:
-            mode_int = 2
 
+        pass
+    def save_config(self):
         from dataclasses import asdict
-        user_config_dict:dict[str,Any] = asdict(user_config)
-        user_config_dict.pop("groups")
-        user_config_dict["mode"] = mode_int
+        user_config_dict:dict[str,Any] = asdict(self.config)
+        groups_dict = user_config_dict.pop("groups")
+        user_config_dict["mode"] = self.config.mode.value
         with open(os.path.join("data","Local","SettingConfig.json"),"r",encoding="utf-8") as f:
             all_user_config = json.load(f)
+        all_user_config["USER"] = self.config.user
         all_user_config[self.config.user] = user_config_dict
         with open(os.path.join("data","Local","SettingConfig.json"),"w",encoding="utf-8") as f:
             json.dump(all_user_config,f,ensure_ascii=False,indent=4)
 
-        groups_dict = asdict(self.config.groups)
+        self._group_json[self.__user] = groups_dict["groups"]
         for k,groups in groups_dict["groups"].items():
             if groups:
                 for group in groups:
-                    if group["mode"] == DownloadMode.BROWSER:
-                        group["mode"] = 0
-                    elif group["mode"] == DownloadMode.API:
-                        group["mode"] = 1
-                    elif group["mode"] == DownloadMode.REQUESTS:
-                        group["mode"] = 2
+                    group["mode"] = group["mode"].value
         with open(os.path.join("data","Local","UrlConfig.json"),"w",encoding="utf-8") as f:
-            json.dump(groups_dict,f,ensure_ascii=False,indent=4)
+            json.dump(self._group_json, f, ensure_ascii=False, indent=4)
     @staticmethod
     def read_users_name():
         with open(os.path.join("data","Local","SettingConfig.json"),"r",encoding="utf-8") as f:
             json_data = json.load(f)
             result = list(json_data.keys())[2:]
             return result
-    @staticmethod
-    def create_user(name):
+    def create_user(self,name):
         from novel_downloader.utils.init_config import init2
         init2(name)
+        self.load_config(name)
+        self.save_config()
+        pass
     def delete_user(self,name,deep=False):
         with open(os.path.join("data","Local","SettingConfig.json"), "r", encoding="utf-8") as f:
             all_user_config = json.load(f)

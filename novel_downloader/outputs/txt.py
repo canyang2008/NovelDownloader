@@ -7,14 +7,14 @@ from novel_downloader.models.save import TxtSaveConfig
 
 
 class TXTOutput(Output):
-    """TXT输出格式，支持多种切割策略和乱序章节处理"""
+    """TXT输出格式"""
 
     def __init__(self, save_config: TxtSaveConfig):
         super().__init__(save_config)
         self.order_chapter_dict: dict[int, Any] = {}  # order -> Chapter对象
 
     def save(self, chapters, **kwargs):
-        """保存一批章节（可能乱序），更新缓存并重新输出"""
+        """保存一批章节，更新缓存并重新输出"""
         if self.save_config.enable is not None and not self.save_config.enable:
             return None
 

@@ -9,7 +9,6 @@ from novel_downloader import NovelDownloader, parse_url, Chapter
 from novel_downloader.models import Website, DownloadMode
 from novel_downloader.models.group import Group
 from novel_downloader.parsers import FeatureNotSupportedError
-
 @dataclass
 class Options:
     url:str = None
@@ -250,7 +249,7 @@ class ND(NovelDownloader):
         self.set(**self.options,website = website)
         novel = self.get_info(url=download_url)
         if self.options.ranges:
-            total_chapters = len(novel.chapters)
+            total_chapters = novel.total
             if total_chapters:
                 download_range = range_split(self.options.ranges, total_chapters)
             else:
@@ -319,7 +318,6 @@ class ND(NovelDownloader):
     def setting(self):
         """配置菜单"""
         import json
-        from tkinter import filedialog
         while True:
             option = input(
 """
@@ -355,7 +353,8 @@ class ND(NovelDownloader):
                                         continue
                                     else:
                                         self.switch_user(users_list[choice_user_index-1])
-                                        break
+                                        print(f"切换成功({self.config.user})")
+                                        return None
                                 except ValueError:
                                     print("输入错误，必须输入纯数字")
                                     continue
@@ -367,8 +366,8 @@ class ND(NovelDownloader):
                                 choice = input("是否切换(y/n)")
                                 if choice == "y":
                                     self.switch_user(user_str)
-                                    print("切换成功")
-                                    break
+                                    print(f"切换成功({self.config.user})")
+                                    return None
                                 else:break
                             else:
                                 print("名称非法，请重新输入")
@@ -393,10 +392,12 @@ class ND(NovelDownloader):
                                     else:
                                         if self.config.user == users_list[choice_user_index-1]:
                                             print("不可删除当前用户")
-                                            break
+                                            return None
                                         choice = input("是否彻底删除(y/n)")
                                         if choice == "y":
                                             self.delete_user(users_list[choice_user_index-1],deep=True)
+                                            print("删除成功")
+                                            return None
                                         else:
                                             self.delete_user(users_list[choice_user_index-1],deep=False)
                                         break
@@ -411,24 +412,25 @@ class ND(NovelDownloader):
                         break
                     elif choice == "1":
                         groups_list = self.read_groups_name()
+                        if not groups_list:
+                            print("无分组")
                         while True:
-                            group_index = 0
                             print("请选择分组\n")
-                            for group in groups_list:
-                                print(f"{group_index}.{group}")
-                                group_index+=1
+                            for idx,group in enumerate(groups_list,start=1):
+                                print(f"{idx}.{group}")
                             choice_group_index_str = input().strip()
                             if choice_group_index_str == "q":
                                 break
                             else:
                                 try:
                                     choice_user_index = int(choice_group_index_str)
-                                    if choice_user_index>len(groups_list):
+                                    if choice_user_index>len(groups_list) or choice_user_index<=0:
                                         print("选择错误")
                                         continue
                                     else:
                                         self.switch_group(groups_list[choice_user_index-1])
-                                        break
+                                        print(f"切换成功({self.config.group})")
+                                        return None
                                 except ValueError:
                                     print("输入错误，必须输入纯数字")
                                     continue
@@ -436,24 +438,24 @@ class ND(NovelDownloader):
                         while True:
                             group_str = input("请输入分组名")
                             if self.create_group(group_str):
-                                print("创建成功")
+                                print(f"创建成功({self.config.group})")
                                 choice = input("是否切换(y/n)")
                                 if choice == "y":
                                     self.switch_group(group_str)
-                                    print("切换成功")
-                                    break
-                                else:break
+                                    print(f"切换成功({self.config.group})")
+                                return None
                             else:
                                 print("名称非法，请重新输入")
                                 continue
                     elif choice == "3":
                         groups_list = self.read_groups_name()
+                        if not groups_list:
+                            print("无分组")
+                            return None
                         while True:
-                            group_index = 0
-                            print("请选择账户\n")
-                            for group in groups_list:
-                                print(f"{group_index}.{group}")
-                                group_index+=1
+                            print("请选择分组\n")
+                            for idx,group in enumerate(groups_list,start=1):
+                                print(f"{idx}.{group}")
                             choice_group_index_str = input().strip()
                             if choice_group_index_str == "q":
                                 break
@@ -464,15 +466,10 @@ class ND(NovelDownloader):
                                         print("选择错误")
                                         continue
                                     else:
-                                        if self.config.user == groups_list[choice_group_index-1]:
+                                        if self.config.group == groups_list[choice_group_index-1]:
                                             print("不可删除当前分组")
                                             break
-                                        choice = input("是否彻底删除(y/n)")
-                                        if choice == "y":
-                                            self.delete_user(groups_list[choice_group_index-1],deep=True)
-                                        else:
-                                            self.delete_user(groups_list[choice_group_index-1],deep=False)
-                                        break
+                                        return None
                                 except ValueError:
                                     print("输入错误，必须输入纯数字")
                                     continue
@@ -615,7 +612,12 @@ class ND(NovelDownloader):
                                     else:
                                         print("输入错误，请重新输入")
                             elif choice == "7":
-                                folder_path = filedialog.askdirectory(title='选择文件夹')
+                                try:
+                                    from tkinter import filedialog
+                                    folder_path = filedialog.askdirectory(title='选择文件夹')
+                                except ImportError:
+                                    filedialog = None
+                                    folder_path = input("请输入文件夹路径")
                                 if folder_path:
                                     self.set(mode=DownloadMode.BROWSER, user_data_dir=folder_path,
                                              update_config=True, create_if_missing=False)
@@ -1254,7 +1256,12 @@ EPUB配置
                                     except ValueError:
                                         print("输入错误，请重新输入")
                             elif choice == "3":
-                                folder = filedialog.askdirectory(title="选择备份目录")
+                                try:
+                                    from tkinter import filedialog
+                                    folder = filedialog.askdirectory(title="选择备份目录")
+                                except ImportError:
+                                    filedialog = None
+                                    folder = input("请输入备份路径")
                                 if folder:
                                     self.set(backup_dir=folder,update_config=True, create_if_missing=False)
                                     self.save_config()
@@ -1273,8 +1280,17 @@ EPUB配置
                         print("无效选项，请重新输入")
 
     def update_novel(self, group):
+        url,website = parse_url(group.url)
         if not os.path.exists(group.file_path):
             print(f"{group.file_path} 不存在")
+            self.set(config = group, website = website)
+            novel = self.get_info(url=url)
+            self.config.groups.update(self.novel.group)
+            if novel.total:
+                orders = list(range(1,len(novel.chapters)+1))
+            else:
+                orders = list(range(1,25001))
+            self.__download(download_url=url, orders=orders)
             return
         print("正在更新")
         history = self.read_novel(group.file_path)
@@ -1288,7 +1304,6 @@ EPUB配置
                 if ch.order not in local_chapters:
                     local_chapters[ch.order] = ch
 
-        _, website = parse_url(group.url)
         self.set(config=group, website=website)
 
         remote_novel = self.get_info(url=group.url)
@@ -1296,7 +1311,7 @@ EPUB配置
 
         need_download_orders = []
 
-        if remote_novel.chapters:
+        if remote_novel.total:
             for remote_ch in remote_novel.chapters:
                 order = remote_ch.order
                 local_ch = local_chapters.get(order)
@@ -1309,15 +1324,20 @@ EPUB配置
                 else:
                     target_novel.update(remote_ch)
                     need_download_orders.append(order)
+            need_save_orders = [i for i in range(1,remote_novel.total+1) if i not in need_download_orders]
+            need_save_chapters = [remote_novel.find_chapter(order) for order in need_save_orders]
+            pass
         else:
             all_possible_orders = list(range(1,25001))
             need_download_orders = [
                 o for o in all_possible_orders
                 if o not in local_chapters or not local_chapters[o].is_complete
             ]
-
+            need_save_orders = [i for i in all_possible_orders if i not in need_download_orders]
+            need_save_chapters = [remote_novel.find_chapter(order) for order in need_save_orders]
+        self.save_novel(need_save_chapters)
         need_download_orders = sorted(set(need_download_orders))
-
+        del history
         self.__download(download_url=group.url, orders=need_download_orders,)
 
     def download_novel(self,download_url):
@@ -1332,8 +1352,7 @@ EPUB配置
             self.set(config = self.config, website = website)
             novel = self.get_info(url=url)
             self.config.groups.update(self.novel.group)
-            self.save_config()
-            if len(novel.chapters):
+            if novel.total:
                 orders = list(range(1,len(novel.chapters)+1))
             else:
                 orders = list(range(1,25001))
@@ -1348,81 +1367,101 @@ if __name__ == "__main__":
         nd.cli_download_novel()"""
     while True:
         nd=ND(config_method)
-        print(f"当前：User:{nd.config.user}   Group:{nd.config.group}")
-        select = input(
-            "\n"
-            "请输入选项 | 链接:\n"
-            "0.网站登录：\n"
-            "1.搜索 & 下载：\n"
-            "2.更新：\n"
-            "3.下载：\n"
-            "4.批量下载：\n"
-            "5.设置：\n"
-            "6.备份：\n"
-        ).strip()
-        if select:
-            if select == "0":
-                website_option = input("""请选择网站：
+        print(f"当前：User:{nd.config.user}   Group:{nd.config.group}  mode:{nd.config.mode}")
+        try:
+            select = input(
+                "\n"
+                "请输入选项 | 链接:\n"
+                "0.网站登录：\n"
+                "1.搜索 & 下载：\n"
+                "2.更新：\n"
+                "3.下载：\n"
+                "4.批量下载：\n"
+                "5.设置：\n"
+                "6.备份：\n"
+            ).strip()
+
+            if select:
+                if select == "0":
+                    print("\n需要进行浏览器操作\n")
+                    website_option = input("""请选择网站：
 1.番茄：
 2.起点：
 3.笔趣阁(www.biqugequ.org)
 ：""").strip()
 
-                print("登录后按下任意键继续..")
-                time.sleep(0.5)
-                if website_option == '1':login_url = "https://fanqienovel.com/main/writer/login"
-                elif website_option == "2":login_url = "https://www.qidian.com"
-                elif website_option == '3':login_url = "https://biqugequ.org"
-                else:
-                    print("请指定网站")
-                    continue
-                from novel_downloader.utils.get_cookies import get_cookies
-                cookies_str = get_cookies(url=login_url,user_data_dir=nd.config.browser.user_data_dir)
-                print(f"cookie: {cookies_str}\n请妥善保管")
-            elif select == "1":nd.search()
-            elif select == "2":
-                groups = nd.config.groups
-                print("\n请选择数字:")
-                result:list[Group] = []
-                for group_name,group_tuple in groups.groups.items():
-                        result.extend(list(group_tuple))
-                for index in range(len(result)):
-                    print(f"{index+1}.{result[index].novel_name}  群组：{result[index].group_name} URL：{result[index].url}")
-                ranges = input()
-                update_range = range_split(ranges, len(result))  # 分割为纯数字型列表
-                for index in update_range:
-                    nd.update_novel(group=result[index-1])
-                del groups
-
-            elif select == "3":
-                input_url = input("请输入小说链接：")
-                nd.download_novel(download_url=input_url)
-            elif select == "4":
-                filename = os.path.join("data", "Local", "urls.txt")
-                if not os.path.exists(filename):
-                    open(filename, encoding="utf-8").close()
-                print(
-                    """将打开urls.txt,请在文件中输入小说链接，一行一个。输入完成后请保存并关闭文件，然后按 Enter 键继续...""")
-                time.sleep(0.5)
-                system = platform.system()
-                if system == "Windows":
-                    os.startfile(filename)
-                elif system == "Darwin":  # macOS
-                    subprocess.run(['open', filename])
-                else:  # Linux 和其他Unix系统
-                    try:
-                        subprocess.run(['xdg-open', filename])
-                    except FileNotFoundError:
-                        print("无法打开文件，请检查系统")
-                input()
-                nd_list = []
-                with open(filename, encoding="utf-8") as f:
-                    for line in f:
-                        if line.startswith("#"): continue
-                        nd_example = ND()
-                        nd_list.append(nd_example)
-                        nd_example.download_novel(line.strip())
-            elif select == "5":
-                nd.setting()
-            elif select.startswith("https://"):
-                nd.download_novel(download_url=select)
+                    print("登录后按下任意键继续..")
+                    time.sleep(0.5)
+                    if website_option == '1':
+                        login_url = "https://fanqienovel.com/main/writer/login"
+                        website_str = "fanqie"
+                    elif website_option == "2":
+                        login_url = "https://www.qidian.com"
+                        website_str = "qidian"
+                    elif website_option == '3':
+                        login_url = "https://biqugequ.org"
+                        website_str = "biquge"
+                    else:
+                        print("请指定网站")
+                        continue
+                    from DrissionPage import Chromium,ChromiumOptions
+                    co = ChromiumOptions().set_user_data_path(nd.config.browser.user_data_dir)
+                    driver = Chromium(addr_or_opts=co)
+                    tab = driver.new_tab()
+                    tab.get(login_url)
+                    input()
+                    cookie = tab.cookies()
+                    cookies = "; ".join([f"{c['name']}={c['value']}" for c in cookie])
+                    print(f"cookie: {cookies}\n请妥善保管")
+                    choice = input("是否保存cookies(y/n)").strip()
+                    if choice == "y":
+                        nd.config.requests[website_str].cookies = cookies
+                        nd.save_config()
+                elif select == "1":nd.search()
+                elif select == "2":
+                    groups = nd.config.groups
+                    print("\n请选择数字:")
+                    result:list[Group] = []
+                    for group_name,group_tuple in groups.groups.items():
+                            result.extend(list(group_tuple))
+                    for index in range(len(result)):
+                        print(f"{index+1}.{result[index].novel_name}  群组：{result[index].group_name} URL：{result[index].url}")
+                    ranges = input()
+                    update_range = range_split(ranges, len(result))  # 分割为纯数字型列表
+                    for index in update_range:
+                        nd.update_novel(group=result[index-1])
+                    del groups
+                elif select == "3":
+                    input_url = input("请输入小说链接：")
+                    nd.download_novel(download_url=input_url)
+                elif select == "4":
+                    filename = os.path.join("data", "Local", "urls.txt")
+                    if not os.path.exists(filename):
+                        open(filename, encoding="utf-8").close()
+                    print(
+                        """将打开urls.txt,请在文件中输入小说链接，一行一个。输入完成后请保存并关闭文件，然后按 Enter 键继续...""")
+                    time.sleep(0.5)
+                    system = platform.system()
+                    if system == "Windows":
+                        os.startfile(filename)
+                    elif system == "Darwin":  # macOS
+                        subprocess.run(['open', filename])
+                    else:  # Linux 和其他Unix系统
+                        try:
+                            subprocess.run(['xdg-open', filename])
+                        except FileNotFoundError:
+                            print("无法打开文件，请检查系统")
+                    input()
+                    nd_list = []
+                    with open(filename, encoding="utf-8") as f:
+                        for line in f:
+                            if line.startswith("#"): continue
+                            nd_example = ND()
+                            nd_list.append(nd_example)
+                            nd_example.download_novel(line.strip())
+                elif select == "5":
+                    nd.setting()
+                elif select.startswith("https://"):
+                    nd.download_novel(download_url=select)
+        except KeyboardInterrupt:
+            exit(0)

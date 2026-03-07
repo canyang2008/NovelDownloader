@@ -223,14 +223,7 @@ def download():
     try:
         # 1. 解析参数
         params = parse_params()
-        if params["mode"] == 0:
-            mode = DownloadMode.BROWSER
-        elif params["mode"] == 1:
-            mode = DownloadMode.API
-        elif params["mode"] == 2:
-            mode = DownloadMode.REQUESTS
-        else:
-            mode = DownloadMode.BROWSER
+        mode = DownloadMode(params["mode"])
         url, website = parse_url(params['url'])
         nd = ND(-1)
         nd.set(mode=mode,

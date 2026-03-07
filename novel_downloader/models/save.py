@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 class SaveFormatConfig:
     """保存格式配置基类"""
     enable: bool = True
-    file_name: str|None = None
+    file_name: str | None = None
     output_dir: str = os.path.join("data","Bookstore","<User>","<Group>","<Name>")
 
 @dataclass

@@ -1,0 +1,145 @@
+{
+    "version": "1.2.0",
+    "USER": "Default",
+    "Default": {
+        "version": "1.2.0",
+        "user": "Default",
+        "group": "Default",
+        "readme": "",
+        "play_sound": {
+            "completion": false
+        },
+        "mode": 0,
+        "thread_count": 3,
+        "browser": {
+            "timeout": 10,
+            "max_retry": 3,
+            "interval": 2.0,
+            "delay": [
+                3.0,
+                5.0
+            ],
+            "port": 9445,
+            "headless": false,
+            "user_data_dir": "data/Local/Default/User Data"
+        },
+        "api": {
+            "fanqie": {
+                "option": "oiapi",
+                "providers": {
+                    "oiapi": {
+                        "name": "oiapi",
+                        "max_retry": 3,
+                        "timeout": 10,
+                        "interval": 2.0,
+                        "delay": [
+                            3.0,
+                            5.0
+                        ],
+                        "key": "",
+                        "endpoint": "",
+                        "address": "",
+                        "headers": {},
+                        "params": {},
+                        "extra_params": {},
+                        "enabled": true
+                    }
+                }
+            },
+            "qidian": {
+                "option": "",
+                "providers": {}
+            }
+        },
+        "requests": {
+            "fanqie": {
+                "max_retry": 3,
+                "timeout": 10,
+                "interval": 2.0,
+                "delay": [
+                    3.0,
+                    5.0
+                ],
+                "cookies": "",
+                "headers": {},
+                "proxies": {}
+            },
+            "qidian": {
+                "max_retry": 3,
+                "timeout": 10,
+                "interval": 2.0,
+                "delay": [
+                    3.0,
+                    5.0
+                ],
+                "cookies": "",
+                "headers": {},
+                "proxies": {}
+            },
+            "biquge": {
+                "max_retry": 3,
+                "timeout": 10,
+                "interval": 2.0,
+                "delay": [
+                    3.0,
+                    5.0
+                ],
+                "cookies": "",
+                "headers": {},
+                "proxies": {}
+            }
+        },
+        "save_method": {
+            "json": {
+                "enable": true,
+                "file_name": null,
+                "output_dir": "data/Bookstore/<User>/<Group>/<Name>",
+                "indent": 4,
+                "save_interval": 3,
+                "ensure_ascii": false,
+                "extension": ".json"
+            },
+            "txt": {
+                "enable": true,
+                "file_name": null,
+                "output_dir": "data/Bookstore/<User>/<Group>/<Name>",
+                "chapters_per_file": 0,
+                "file_size": -1,
+                "encoding": "utf-8",
+                "extension": ".txt"
+            },
+            "html": {
+                "enable": true,
+                "file_name": null,
+                "output_dir": "data/Bookstore/<User>/<Group>/<Name>",
+                "one_file": true,
+                "template": "default",
+                "extension": ".html"
+            },
+            "epub": {
+                "enable": true,
+                "file_name": null,
+                "output_dir": "data/Bookstore/<User>/<Group>/<Name>",
+                "css_style": "default",
+                "include_toc": true,
+                "extension": ".epub"
+            },
+            "img": {
+                "enable": true,
+                "file_name": null,
+                "output_dir": "data/Bookstore/<User>/<Group>/<Name>/Img",
+                "method": 0,
+                "extension": ".png"
+            }
+        },
+        "backup": {
+            "auto": false,
+            "interval": 86400,
+            "backup_dir": "/home/canyang/novel_backup",
+            "name": "Novel_backup.zip",
+            "last_time": -1,
+            "compression": 0
+        },
+        "unprocess": []
+    }
+}

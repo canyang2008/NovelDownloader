@@ -11,7 +11,6 @@ class Output(ABC):
     def __init__(self, save_config):
         self.save_config = save_config
         self.novel: Any | None = None   # Novel对象
-        self.__file = None
         pass
 
     @abstractmethod

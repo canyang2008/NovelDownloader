@@ -3,9 +3,6 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import field
-
-from DrissionPage import Chromium,ChromiumOptions
-from DrissionPage.common import Settings
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -82,6 +79,8 @@ class ChromeDownloader(BaseDownloader):
 
     def __init_driver(self):
         """初始化浏览器驱动"""
+
+        from DrissionPage import Chromium, ChromiumOptions
         co = ChromiumOptions()
         co = co.set_user_data_path(self.user_data_dir)
         co = co.set_local_port(self.port)
@@ -90,14 +89,15 @@ class ChromeDownloader(BaseDownloader):
         return self.driver
 
     def __set_new_tab(self):
+        from DrissionPage.common import Settings
         Settings.set_singleton_tab_obj(False)
         self.page = self.driver.new_tab()
 
     def get(self, url, **kwargs):
         """访问网站"""
+        time.sleep(random.uniform(*self.delay))
         try:
             self.page.get(url)
-            time.sleep(random.uniform(*self.delay))
             try:
                 with ThreadingTimeout(self.timeout):
                     response:str = self.page.raw_data
@@ -160,10 +160,10 @@ class APIDownloader(BaseDownloader):
 
     def get(self, url, **kwargs):
         """访问网站"""
+        time.sleep(random.uniform(*self.delay))
         try:
             with ThreadingTimeout(self.timeout):
                 response = self.page.post(url=url, data=kwargs["post_data"], timeout=self.timeout)
-            time.sleep(random.uniform(*self.delay))
             response.encoding = 'utf-8'
             if not self.page.cookies:
                 self.current_cookies = response.cookies
@@ -198,15 +198,19 @@ class RequestsDownloader(BaseDownloader):
         self.MODE = DownloadMode.REQUESTS
 
         if not self.headers:
-            self.headers:dict[str, str] = field(default_factory=lambda:{
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            from fake_useragent import UserAgent
+            ua = UserAgent()
+            self.headers:dict[str, str] = {
+                'User-Agent': ua.random,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
                 'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive'
-            })
-        if self.cookies:
-            self.headers['Cookie'] = self.cookies
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Cache-Control': 'max-age=0',
+    }
         self.__set_new_session()
 
     def __set_new_session(self):
@@ -219,13 +223,19 @@ class RequestsDownloader(BaseDownloader):
         self.page = requests.Session()
         self.page.mount("https://", adapter)
         self.page.proxies = self.proxies
+        self.page.headers = self.headers
+        from http.cookies import SimpleCookie
+        cookie = SimpleCookie()
+        cookie.load(self.cookies)
+        cookies_dict = {key: morsel.value for key, morsel in cookie.items()}
+        self.page.cookies.update(cookies_dict)
 
     def get(self, url, **kwargs):
         """访问网站"""
+        time.sleep(random.uniform(*self.delay))
         try:
             with ThreadingTimeout(self.timeout):
                 response = self.page.get(url, timeout=self.timeout)
-            time.sleep(random.uniform(*self.delay))
             response.encoding = 'utf-8'
             if not self.page.cookies:
                 self.current_cookies = response.cookies
