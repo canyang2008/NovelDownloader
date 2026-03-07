@@ -88,7 +88,7 @@ echo "alias nd_run='source ~/nd/bin/activate; cd ~/NovelDownloader; python3 main
 - **API**
   API仅有番茄的，后续会添加
   - FqRead(oiapi)：  
-    - 使用之前需先获取apikey，访问API官网获取apikey(https://oiapi.net/)，加入QQ群聊，找到机器人卡特获取
+    - 使用之前需先获取apikey，访问API官网获取[apikey](https://oiapi.net/)，加入QQ群聊，找到机器人卡特获取
     - [API文档](https://oiapi.net/doc/id/115.html)
 ## 关于反病毒误报说明
 本程序操作 Chrome操作，这与某些病毒的运行方式类似，所以容易误报。  
