@@ -7,3 +7,4 @@ lxml
 Requests
 tqdm
 urllib3
+fake_useragent
